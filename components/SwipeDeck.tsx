@@ -31,9 +31,6 @@ export function SwipeDeck({
   const [showHelp, setShowHelp] = useState(false);
   const [detailRestaurant, setDetailRestaurant] = useState<Restaurant | null>(null);
   const selectedCount = Math.min(state.seenIds.length, totalRestaurants);
-  const progress = totalRestaurants
-    ? Math.round((selectedCount / totalRestaurants) * 100)
-    : 0;
   const visibleRestaurants = useMemo(() => {
     if (deckRestaurants?.length) return deckRestaurants.slice(0, 4);
     return currentRestaurant ? [currentRestaurant] : [];
@@ -43,7 +40,7 @@ export function SwipeDeck({
 
   useEffect(() => {
     visibleRestaurants.slice(0, 4).forEach((restaurant, index) => {
-      preloadRestaurantImages(restaurant, index === 0 ? 3 : 2);
+      preloadRestaurantImages(restaurant, index === 0 ? 3 : 1, index === 0);
     });
   }, [visibleRestaurants]);
 
@@ -56,36 +53,42 @@ export function SwipeDeck({
   }, [detailRestaurant, state.matches]);
 
   return (
-    <section className="flex min-h-0 flex-1 flex-col px-5 pb-3 pt-1">
-      <div className="mb-2 rounded-lg bg-white/84 px-3 py-2 shadow-sm ring-1 ring-teal-900/5">
-        <div className="flex items-center justify-between gap-2 text-xs font-black">
-          <span className="rounded-full bg-slate-50 px-3 py-2 text-slate-700">
+    <section className="flex min-h-0 flex-1 flex-col px-4 pb-2 pt-0">
+      <div className="mb-1 flex items-center justify-between gap-3 px-1">
+        <p className="min-w-0 truncate text-xs font-black text-slate-500">
+          {room.name}
+        </p>
+        <button
+          type="button"
+          onClick={onViewMatches}
+          className="shrink-0 rounded-full bg-white/80 px-2.5 py-1 text-xs font-black text-teal-600 shadow-sm ring-1 ring-teal-900/5"
+        >
+          看榜
+        </button>
+      </div>
+
+      <div className="mb-2">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] font-black no-scrollbar">
+          <span className="shrink-0 rounded-full bg-white/84 px-2.5 py-1.5 text-slate-700 shadow-sm ring-1 ring-teal-900/5">
             已选择 {selectedCount} / {totalRestaurants}
           </span>
-          <span className="rounded-full bg-teal-50 px-3 py-2 text-teal-700">
-            已有 {state.matches.length} 个共同心动
+          <span className="shrink-0 rounded-full bg-teal-50 px-2.5 py-1.5 text-teal-700 ring-1 ring-teal-100">
+            已有 {state.matches.length} 个
           </span>
           <button
             type="button"
             onClick={() => setShowHelp((value) => !value)}
-            className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-2 text-amber-700"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1.5 text-amber-700 ring-1 ring-amber-100"
           >
             <CircleHelp size={13} />
             怎么玩？
           </button>
         </div>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 shadow-inner">
-          <motion.div
-            className="h-full rounded-full bg-[linear-gradient(90deg,#14b8a6,#f59e0b)]"
-            initial={false}
-            animate={{ width: `${progress}%` }}
-          />
-        </div>
         {showHelp ? (
           <motion.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-2 grid gap-1.5 text-[11px] font-black text-slate-500"
+            className="mt-1 rounded-lg bg-white/86 px-3 py-2 text-[11px] font-black leading-5 text-slate-500 shadow-sm ring-1 ring-teal-900/5"
           >
             <div className="flex items-center gap-1.5">
               <X size={13} className="text-rose-400" />
@@ -101,19 +104,6 @@ export function SwipeDeck({
             </div>
           </motion.div>
         ) : null}
-      </div>
-
-      <div className="mb-2 flex items-center justify-between gap-3 px-1">
-        <p className="min-w-0 truncate text-xs font-black text-slate-500">
-          {room.name}
-        </p>
-        <button
-          type="button"
-          onClick={onViewMatches}
-          className="shrink-0 text-xs font-black text-teal-600"
-        >
-          看榜
-        </button>
       </div>
 
       <div className="relative min-h-0 flex-1">
@@ -209,7 +199,7 @@ function RestaurantStackPreview({
   return (
     <div className="relative h-full min-h-[560px]">
       <article className="absolute inset-0 overflow-hidden rounded-lg bg-white shadow-[0_18px_50px_rgba(15,118,110,0.14)] ring-1 ring-teal-900/8">
-        <div className="relative h-[72%] overflow-hidden bg-teal-50">
+        <div className="relative h-[78%] overflow-hidden bg-teal-50">
           <img
             src={getRestaurantCover(restaurant)}
             alt={restaurant.name}
@@ -226,7 +216,7 @@ function RestaurantStackPreview({
             </p>
           </div>
         </div>
-        <div className="h-[28%] p-5">
+        <div className="h-[22%] p-4">
           <div className="h-4 w-24 rounded-full bg-slate-100" />
           <div className="mt-4 flex gap-2">
             {restaurant.tags.slice(0, 3).map((tag) => (

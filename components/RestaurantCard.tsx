@@ -5,13 +5,11 @@ import { getRestaurantImages, preloadRestaurantImages } from "@/lib/restaurantIm
 import type { SwipeDecision } from "@/types";
 import {
   ChevronRight,
-  Heart,
   Info,
   MapPin,
   Star,
   Utensils,
   Wallet,
-  X
 } from "lucide-react";
 import {
   motion,
@@ -43,9 +41,13 @@ export const RestaurantCard = memo(function RestaurantCard({
   const controls = useAnimationControls();
   const [busy, setBusy] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
   const [imageIndex, setImageIndex] = useState(0);
   const images = useMemo(() => getRestaurantImages(restaurant), [restaurant]);
   const activeImage = images[imageIndex] ?? images[0] ?? "";
+  const fallbackImage =
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 1200'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop stop-color='%230f766e'/%3E%3Cstop offset='0.52' stop-color='%2314b8a6'/%3E%3Cstop offset='1' stop-color='%23f59e0b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='900' height='1200' fill='url(%23g)'/%3E%3Ctext x='50%25' y='50%25' fill='white' font-size='54' font-family='Arial, sans-serif' font-weight='700' text-anchor='middle'%3E%E5%90%83%E5%95%A5%20Match%3C/text%3E%3C/svg%3E";
+  const imageSrc = imageFailed ? fallbackImage : activeImage;
 
   useEffect(() => {
     setImageIndex(0);
@@ -54,6 +56,7 @@ export const RestaurantCard = memo(function RestaurantCard({
 
   useEffect(() => {
     setImageLoaded(false);
+    setImageFailed(false);
   }, [activeImage]);
 
   function finish(decision: SwipeDecision) {
@@ -84,7 +87,7 @@ export const RestaurantCard = memo(function RestaurantCard({
   }
 
   return (
-    <div className="relative h-full min-h-[570px]">
+    <div className="relative h-full min-h-[560px]">
       <motion.article
         drag="x"
         dragElastic={0.18}
@@ -110,7 +113,7 @@ export const RestaurantCard = memo(function RestaurantCard({
         style={{ x, rotate }}
         className="absolute inset-0 overflow-hidden rounded-lg bg-white shadow-[0_26px_70px_rgba(15,118,110,0.22)] ring-1 ring-teal-900/10"
       >
-        <div className="relative h-[72%] overflow-hidden bg-teal-100">
+        <div className="relative h-[78%] overflow-hidden bg-teal-100">
           <div className="absolute left-3 right-3 top-3 z-20 flex gap-1.5">
             {images.map((image) => (
               <span
@@ -127,8 +130,8 @@ export const RestaurantCard = memo(function RestaurantCard({
             }`}
           />
           <motion.img
-            key={activeImage}
-            src={activeImage}
+            key={imageSrc}
+            src={imageSrc}
             alt={restaurant.name}
             initial={{ opacity: 0.35, scale: 1.015 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -137,7 +140,12 @@ export const RestaurantCard = memo(function RestaurantCard({
             draggable={false}
             loading={priority ? "eager" : "lazy"}
             decoding="async"
+            fetchPriority={priority ? "high" : "auto"}
             onLoad={() => setImageLoaded(true)}
+            onError={() => {
+              setImageFailed(true);
+              setImageLoaded(true);
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/76 via-slate-950/10 to-transparent" />
           <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-white/92 px-3 py-2 text-sm font-black text-teal-700 shadow-sm backdrop-blur">
@@ -146,20 +154,19 @@ export const RestaurantCard = memo(function RestaurantCard({
           </div>
           <motion.div
             style={{ opacity: likeOpacity, scale: likeScale }}
-            className="absolute right-5 top-20 -rotate-6 rounded-lg border-4 border-teal-400 bg-white/92 px-5 py-2 text-2xl font-black text-teal-500 shadow-lg"
+            className="pointer-events-none absolute right-5 top-20 z-30 -rotate-6 rounded-lg border-4 border-teal-400 bg-white/92 px-5 py-2 text-2xl font-black text-teal-500 shadow-lg"
           >
-              想吃
-            </motion.div>
+            想吃
+          </motion.div>
           <motion.div
             style={{ opacity: skipOpacity, scale: skipScale }}
-            className="absolute left-5 top-20 rotate-6 rounded-lg border-4 border-rose-400 bg-white/92 px-5 py-2 text-2xl font-black text-rose-500 shadow-lg"
+            className="pointer-events-none absolute left-5 top-20 z-30 rotate-6 rounded-lg border-4 border-rose-400 bg-white/92 px-5 py-2 text-2xl font-black text-rose-500 shadow-lg"
           >
             不想吃
           </motion.div>
           <button
             type="button"
             aria-label="上一张餐厅图片"
-            onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
               switchImage(-1);
@@ -169,7 +176,6 @@ export const RestaurantCard = memo(function RestaurantCard({
           <button
             type="button"
             aria-label="下一张餐厅图片"
-            onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
               switchImage(1);
@@ -205,7 +211,7 @@ export const RestaurantCard = memo(function RestaurantCard({
           </div>
         </div>
 
-        <div className="flex h-[28%] flex-col justify-between p-4">
+        <div className="flex h-[22%] flex-col justify-center gap-3 p-4">
           <div>
             <button
               type="button"
@@ -241,27 +247,6 @@ export const RestaurantCard = memo(function RestaurantCard({
                 </span>
               </div>
             ) : null}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => finish("skip")}
-              className="flex h-14 items-center justify-center gap-2 rounded-full bg-rose-50 text-base font-black text-rose-500 transition active:scale-[0.97]"
-            >
-              <X size={21} />
-              不想吃
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => finish("like")}
-              className="flex h-14 items-center justify-center gap-2 rounded-full bg-teal-500 text-base font-black text-white shadow-lg shadow-teal-500/25 transition active:scale-[0.97]"
-            >
-              <Heart size={21} className="fill-white" />
-              想吃
-            </button>
           </div>
         </div>
       </motion.article>

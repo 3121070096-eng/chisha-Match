@@ -10,7 +10,7 @@ import { restaurants } from "@/data/restaurants";
 import { calculateMatchesFromSwipes, findRestaurant, getMatchItems } from "@/lib/match";
 import type { MatchRecord, Room, RoomMember, SwipeDecision, SwipeRecord } from "@/types";
 import { motion } from "framer-motion";
-import { ArrowRight, PartyPopper, Plus, Sparkles, Trophy } from "lucide-react";
+import { PartyPopper, Plus, Trophy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -211,8 +211,6 @@ export default function DemoPage() {
       }
     >
       <section className="flex min-h-0 flex-1 flex-col">
-        <DemoNotice />
-
         {view === "swipe" ? (
           <SwipeDeck
             room={demoRoom}
@@ -294,20 +292,5 @@ export default function DemoPage() {
         }}
       />
     </AppChrome>
-  );
-}
-
-function DemoNotice() {
-  return (
-    <div className="mx-5 mb-3 rounded-lg bg-amber-50 px-4 py-3 text-sm font-black leading-6 text-amber-800 ring-1 ring-amber-200/70">
-      <div className="flex items-center gap-2">
-        <Sparkles size={17} />
-        这是体验模式，真实使用请创建饭局并邀请朋友。
-      </div>
-      <div className="mt-2 flex items-center gap-2 text-xs text-amber-700">
-        <ArrowRight size={14} />
-        右滑青柠小馆、桥边火锅社、禾作寿司或番茄星球，很快就会 Match。
-      </div>
-    </div>
   );
 }
