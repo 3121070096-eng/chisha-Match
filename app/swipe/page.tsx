@@ -1,0 +1,430 @@
+"use client";
+
+import { AppChrome } from "@/components/AppChrome";
+import { BottomNav } from "@/components/BottomNav";
+import { EmptyState } from "@/components/EmptyState";
+import { MatchModal } from "@/components/MatchModal";
+import { SwipeDeck } from "@/components/SwipeDeck";
+import { restaurants } from "@/data/restaurants";
+import { findRestaurant } from "@/lib/match";
+import { getReadableSupabaseError } from "@/lib/supabaseErrors";
+import {
+  clearRoomMemberSession,
+  getCurrentUser,
+  getRoomMemberSession,
+  saveCurrentUser,
+  saveRoomMemberSession
+} from "@/lib/storage";
+import {
+  clearSupabaseMemberSwipes,
+  loadSupabaseRoomState,
+  loadSupabaseRoomStateForMember,
+  loadSupabaseRoomPreview,
+  subscribeToSupabaseRoom,
+  writeSupabaseSwipe
+} from "@/lib/supabaseRooms";
+import type {
+  MatchRecord,
+  Room,
+  RoomMember,
+  RoomMemberSession,
+  SwipeDecision,
+  SwipeState
+} from "@/types";
+import { Home, RotateCcw, UserRoundPlus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+
+function getRoomIdFromUrl() {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get("roomId") ?? "";
+}
+
+type Popup = {
+  restaurantId: string;
+  likedBy: string[];
+};
+
+export default function SwipePage() {
+  const router = useRouter();
+  const [room, setRoom] = useState<Room | null>(null);
+  const [currentMember, setCurrentMember] = useState<RoomMember | null>(null);
+  const [state, setState] = useState<SwipeState | null>(null);
+  const [roomCode, setRoomCode] = useState("");
+  const [needsJoin, setNeedsJoin] = useState(false);
+  const [bootstrapped, setBootstrapped] = useState(false);
+  const [nickname, setNickname] = useState("");
+  const [popup, setPopup] = useState<Popup | null>(null);
+  const [missingRoom, setMissingRoom] = useState(false);
+  const [error, setError] = useState("");
+
+  const refreshRoomForMember = useCallback(async (
+    code: string,
+    memberSession: RoomMemberSession
+  ) => {
+    const remoteState = await loadSupabaseRoomStateForMember(code, memberSession);
+    setRoom(remoteState.room);
+    setCurrentMember(remoteState.currentMember);
+    setState(remoteState.swipeState);
+    return remoteState;
+  }, []);
+
+  useEffect(() => {
+    const roomId = getRoomIdFromUrl();
+    let mounted = true;
+
+    async function loadRoom() {
+      setRoomCode(roomId);
+
+      if (!roomId) {
+        setMissingRoom(true);
+        setBootstrapped(true);
+        return;
+      }
+
+      const loadedUser = getCurrentUser();
+      setNickname(loadedUser?.nickname ?? "");
+
+      try {
+        const memberSession = getRoomMemberSession(roomId);
+
+        if (!memberSession) {
+          const preview = await loadSupabaseRoomPreview(roomId);
+          if (!mounted) return;
+
+          if (!preview) {
+            setMissingRoom(true);
+            setBootstrapped(true);
+            return;
+          }
+
+          setRoom(preview.room);
+          setNeedsJoin(true);
+          setBootstrapped(true);
+          return;
+        }
+
+        if (!loadedUser) {
+          setNickname(memberSession.nickname);
+        }
+
+        try {
+          await refreshRoomForMember(roomId, memberSession);
+          if (!mounted) return;
+          setNeedsJoin(false);
+          setBootstrapped(true);
+        } catch (sessionError) {
+          console.error("[Supabase] swipe member session failed", sessionError);
+          clearRoomMemberSession(roomId);
+          const preview = await loadSupabaseRoomPreview(roomId);
+          if (!mounted) return;
+
+          if (!preview) {
+            setMissingRoom(true);
+            setBootstrapped(true);
+            return;
+          }
+
+          setRoom(preview.room);
+          setNeedsJoin(true);
+          setError("本地成员记录已失效，请重新输入昵称进入选择。");
+          setBootstrapped(true);
+        }
+      } catch (loadError) {
+        if (!mounted) return;
+        console.error("[Swipe] load room failed", loadError);
+        setError(getReadableSupabaseError(loadError, "加载房间失败"));
+        setMissingRoom(true);
+        setBootstrapped(true);
+      }
+    }
+
+    void loadRoom();
+
+    return () => {
+      mounted = false;
+    };
+  }, [refreshRoomForMember]);
+
+  useEffect(() => {
+    if (!room?.databaseId || !roomCode || !currentMember) return;
+
+    const unsubscribe = subscribeToSupabaseRoom({
+      roomDatabaseId: room.databaseId,
+      onChange: async () => {
+        const memberSession = getRoomMemberSession(roomCode);
+        if (!memberSession) return;
+
+        try {
+          await refreshRoomForMember(roomCode, memberSession);
+        } catch (refreshError) {
+          console.error("[Supabase] refresh swipe room failed", refreshError);
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, [currentMember?.id, refreshRoomForMember, room?.databaseId, roomCode]);
+
+  const deckRestaurants = useMemo(() => {
+    if (!state) return [];
+    const seenIds = new Set(state.seenIds);
+    return restaurants
+      .filter((restaurant) => !seenIds.has(restaurant.id))
+      .slice(0, 4);
+  }, [state]);
+  const currentRestaurant = deckRestaurants[0] ?? null;
+
+  async function handleNickname(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const roomId = getRoomIdFromUrl();
+    setError("");
+
+    try {
+      const saved = saveCurrentUser(nickname || "饭友");
+      const remoteState = await loadSupabaseRoomState(roomId, saved);
+      saveRoomMemberSession(remoteState.room.id, remoteState.currentMember, saved.id);
+      setRoom(remoteState.room);
+      setCurrentMember(remoteState.currentMember);
+      setState(remoteState.swipeState);
+      setNeedsJoin(false);
+      setBootstrapped(true);
+    } catch (joinError) {
+      console.error("[Swipe] join room failed", joinError);
+      setError(getReadableSupabaseError(joinError, "进入选择失败"));
+    }
+  }
+
+  async function handleDecision(decision: SwipeDecision) {
+    if (!room?.databaseId || !state || !currentMember || !currentRestaurant) return;
+
+    const previousMatches = state.matches;
+    const restaurantId = currentRestaurant.id;
+    const memberSession = getRoomMemberSession(room.id);
+
+    if (!memberSession) {
+      setNeedsJoin(true);
+      setCurrentMember(null);
+      setError("请先输入昵称加入这个饭局，再开始选择。");
+      return;
+    }
+
+    setState((current) =>
+      current
+        ? applyOptimisticSwipe({
+            state: current,
+            restaurantId,
+            decision
+          })
+        : current
+    );
+
+    try {
+      await writeSupabaseSwipe({
+        roomDatabaseId: room.databaseId,
+        memberId: currentMember.id,
+        restaurantId,
+        decision
+      });
+
+      const remoteState = await refreshRoomForMember(room.id, memberSession);
+      const newMatch = getNewMatchForSwipe({
+        decision,
+        restaurantId,
+        memberId: currentMember.id,
+        previousMatches,
+        nextMatches: remoteState.swipeState.matches
+      });
+
+      if (newMatch) {
+        setPopup({
+          restaurantId: newMatch.restaurantId,
+          likedBy: newMatch.likedBy
+        });
+      }
+    } catch (swipeError) {
+      console.error("[Swipe] write swipe failed", swipeError);
+      setError(getReadableSupabaseError(swipeError, "写入选择失败"));
+    }
+  }
+
+  async function resetDeck() {
+    if (!room?.databaseId || !currentMember) return;
+
+    try {
+      setPopup(null);
+      await clearSupabaseMemberSwipes({
+        roomDatabaseId: room.databaseId,
+        memberId: currentMember.id
+      });
+      const memberSession = getRoomMemberSession(room.id);
+      if (memberSession) {
+        await refreshRoomForMember(room.id, memberSession);
+      }
+    } catch (resetError) {
+      console.error("[Swipe] reset deck failed", resetError);
+      setError(getReadableSupabaseError(resetError, "重置失败"));
+    }
+  }
+
+  if (missingRoom) {
+    return (
+      <AppChrome showBack title="开始选择">
+        <EmptyState
+          icon={Home}
+          title="还没有饭局房间"
+          description={error || "先创建一个饭局，或者从首页输入邀请码加入已有房间。"}
+          primaryLabel="创建饭局"
+          onPrimary={() => router.push("/create")}
+          secondaryLabel="回到首页"
+          onSecondary={() => router.push("/")}
+        />
+      </AppChrome>
+    );
+  }
+
+  if (!bootstrapped) {
+    return (
+      <AppChrome showBack title="开始选择">
+        <div className="grid flex-1 place-items-center px-5 text-sm font-bold text-slate-500">
+          正在同步饭局选择
+        </div>
+      </AppChrome>
+    );
+  }
+
+  if (needsJoin || !currentMember) {
+    return (
+      <AppChrome showBack title="开始选择">
+        <form onSubmit={handleNickname} className="flex flex-1 flex-col justify-center px-5">
+          <div className="rounded-lg bg-white p-5 shadow-sm ring-1 ring-teal-900/5">
+            <div className="mb-4 grid size-12 place-items-center rounded-full bg-teal-50 text-teal-500">
+              <UserRoundPlus size={24} />
+            </div>
+            <label className="block text-sm font-black text-slate-700">
+              你的昵称
+              <input
+                value={nickname}
+                onChange={(event) => setNickname(event.target.value)}
+                placeholder="比如：饭搭子"
+                className="mt-2 h-12 w-full rounded-lg border border-teal-900/10 bg-teal-50/70 px-4 text-base font-bold outline-none focus:border-teal-400 focus:bg-white"
+              />
+            </label>
+            {error ? (
+              <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm font-black text-rose-500">
+                {error}
+              </p>
+            ) : null}
+            <button
+              type="submit"
+              className="mt-4 h-12 w-full rounded-full bg-teal-500 text-base font-black text-white shadow-lg shadow-teal-500/25"
+            >
+              进入选择
+            </button>
+          </div>
+        </form>
+      </AppChrome>
+    );
+  }
+
+  if (!room || !state) {
+    return (
+      <AppChrome showBack title="开始选择">
+        <div className="grid flex-1 place-items-center px-5 text-sm font-bold text-slate-500">
+          正在同步饭局选择
+        </div>
+      </AppChrome>
+    );
+  }
+
+  const popupRestaurant = popup ? findRestaurant(popup.restaurantId) : null;
+
+  return (
+    <AppChrome
+      showBack
+      title="滑卡选择"
+      rightSlot={
+        <button
+          type="button"
+          aria-label="重置选择"
+          onClick={() => void resetDeck()}
+          className="grid size-10 place-items-center rounded-full bg-white text-slate-700 shadow-sm ring-1 ring-teal-900/5"
+        >
+          <RotateCcw size={18} />
+        </button>
+      }
+    >
+      {error ? (
+        <div className="mx-5 mb-2 rounded-lg bg-rose-50 px-4 py-3 text-sm font-black text-rose-500">
+          {error}
+        </div>
+      ) : null}
+      <SwipeDeck
+        room={room}
+        state={state}
+        currentRestaurant={currentRestaurant}
+        deckRestaurants={deckRestaurants}
+        totalRestaurants={restaurants.length}
+        onDecision={handleDecision}
+        onViewMatches={() => router.push(`/matches?roomId=${room.id}`)}
+      />
+      <BottomNav roomId={room.id} active="swipe" />
+      <MatchModal
+        restaurant={popupRestaurant}
+        likedBy={popup?.likedBy ?? []}
+        onContinue={() => setPopup(null)}
+        onViewMatches={() => {
+          setPopup(null);
+          router.push(`/matches?roomId=${room.id}`);
+        }}
+      />
+    </AppChrome>
+  );
+}
+
+function getNewMatchForSwipe({
+  decision,
+  restaurantId,
+  memberId,
+  previousMatches,
+  nextMatches
+}: {
+  decision: SwipeDecision;
+  restaurantId: string;
+  memberId: string;
+  previousMatches: MatchRecord[];
+  nextMatches: MatchRecord[];
+}) {
+  if (decision !== "like") return null;
+
+  const hadMatch = previousMatches.some((match) => match.restaurantId === restaurantId);
+  if (hadMatch) return null;
+
+  const newMatch = nextMatches.find((match) => match.restaurantId === restaurantId);
+  if (!newMatch?.likedByIds.includes(memberId)) return null;
+
+  return newMatch;
+}
+
+function applyOptimisticSwipe({
+  state,
+  restaurantId,
+  decision
+}: {
+  state: SwipeState;
+  restaurantId: string;
+  decision: SwipeDecision;
+}) {
+  return {
+    ...state,
+    seenIds: Array.from(new Set([...state.seenIds, restaurantId])),
+    likedIds:
+      decision === "like"
+        ? Array.from(new Set([...state.likedIds, restaurantId]))
+        : state.likedIds,
+    skippedIds:
+      decision === "skip"
+        ? Array.from(new Set([...state.skippedIds, restaurantId]))
+        : state.skippedIds
+  };
+}

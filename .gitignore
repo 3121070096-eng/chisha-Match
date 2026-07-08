@@ -1,0 +1,41 @@
+# dependencies
+node_modules/
+
+# next
+.next/
+out/
+
+# production
+dist/
+build/
+
+# vercel
+.vercel/
+
+# env
+.env
+.env.*
+.env.local
+!.env.example
+
+# system
+.DS_Store
+.idea/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# typescript
+*.tsbuildinfo
+
+.pnpm-store/
+node_modules/
+.next/
+.vercel/
+dist/
+build/
+.env.local
+.DS_Store
