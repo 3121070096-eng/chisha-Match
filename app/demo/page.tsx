@@ -6,8 +6,9 @@ import { FinalResultCard } from "@/components/FinalResultCard";
 import { MatchList } from "@/components/MatchList";
 import { MatchModal } from "@/components/MatchModal";
 import { SwipeDeck } from "@/components/SwipeDeck";
-import { restaurants } from "@/data/restaurants";
+import { trackEvent } from "@/lib/analytics";
 import { calculateMatchesFromSwipes, findRestaurant, getMatchItems } from "@/lib/match";
+import { getDemoRestaurants } from "@/lib/restaurantSource";
 import type { MatchRecord, Room, RoomMember, SwipeDecision, SwipeRecord } from "@/types";
 import { motion } from "framer-motion";
 import { PartyPopper, Plus, Trophy } from "lucide-react";
@@ -19,7 +20,7 @@ type DemoView = "swipe" | "matches" | "final";
 const demoRoom: Room = {
   id: "demo-room",
   name: "体验饭局",
-  location: "你附近",
+  location: "体验餐厅池",
   budget: 120,
   cuisines: ["东南亚菜", "川渝火锅", "日料"],
   participants: 3,
@@ -60,8 +61,10 @@ const demoMembers: RoomMember[] = [
 
 const demoFriendLikes: Record<string, string[]> = {
   "demo-friend-a": ["r-001", "r-002", "r-008", "r-012"],
-  "demo-friend-b": ["r-003", "r-004", "r-009", "r-014"]
+  "demo-friend-b": ["r-003", "r-004", "r-009", "r-010"]
 };
+
+const demoRestaurants = getDemoRestaurants();
 
 function createDemoFriendSwipes() {
   return Object.entries(demoFriendLikes).flatMap(([memberId, restaurantIds]) =>
@@ -143,16 +146,19 @@ export default function DemoPage() {
 
   const deckRestaurants = useMemo(() => {
     const seenIds = new Set(swipeState.seenIds);
-    return restaurants
+    return demoRestaurants
       .filter((restaurant) => !seenIds.has(restaurant.id))
       .slice(0, 4);
   }, [swipeState.seenIds]);
-  const matchItems = useMemo(() => getMatchItems(swipeState.matches), [swipeState.matches]);
+  const matchItems = useMemo(
+    () => getMatchItems(swipeState.matches, demoRoom.location),
+    [swipeState.matches]
+  );
   const finalItem = useMemo(() => {
     if (!finalRestaurantId) return null;
     return matchItems.find((item) => item.restaurant.id === finalRestaurantId) ?? null;
   }, [finalRestaurantId, matchItems]);
-  const popupRestaurant = popup ? findRestaurant(popup.restaurantId) : null;
+  const popupRestaurant = popup ? findRestaurant(popup.restaurantId, demoRoom.location) : null;
 
   function handleDecision(decision: SwipeDecision) {
     const restaurant = deckRestaurants[0];
@@ -181,9 +187,28 @@ export default function DemoPage() {
     });
 
     setSwipes(nextSwipes);
+    void trackEvent({
+      eventName: decision === "like" ? "restaurant_liked" : "restaurant_passed",
+      metadata: {
+        restaurant_id: restaurant.id,
+        restaurant_name: restaurant.name,
+        area_key: restaurant.area,
+        mode: "demo"
+      }
+    });
 
     if (newMatch) {
       setShownMatchIds((current) => [...current, newMatch.restaurantId]);
+      void trackEvent({
+        eventName: "match_created",
+        metadata: {
+          restaurant_id: newMatch.restaurantId,
+          restaurant_name: restaurant.name,
+          matched_member_count: newMatch.count,
+          area_key: restaurant.area,
+          mode: "demo"
+        }
+      });
       setPopup(newMatch);
     }
   }
@@ -217,7 +242,7 @@ export default function DemoPage() {
             state={swipeState}
             currentRestaurant={deckRestaurants[0] ?? null}
             deckRestaurants={deckRestaurants}
-            totalRestaurants={restaurants.length}
+            totalRestaurants={demoRestaurants.length}
             onDecision={handleDecision}
             onViewMatches={() => setView("matches")}
           />
@@ -228,6 +253,17 @@ export default function DemoPage() {
             <MatchList
               items={matchItems}
               onChooseFinal={(restaurantId) => {
+                const item = matchItems.find((matchItem) => matchItem.restaurant.id === restaurantId);
+                void trackEvent({
+                  eventName: "final_decided",
+                  metadata: {
+                    restaurant_id: restaurantId,
+                    restaurant_name: item?.restaurant.name ?? restaurantId,
+                    area_key: item?.restaurant.area ?? "demo",
+                    liked_member_count: item?.match.count ?? 0,
+                    mode: "demo"
+                  }
+                });
                 setFinalRestaurantId(restaurantId);
                 setView("final");
               }}

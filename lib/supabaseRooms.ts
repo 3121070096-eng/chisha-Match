@@ -1,6 +1,6 @@
 "use client";
 
-import { restaurants } from "@/data/restaurants";
+import { getRestaurantsForLocation } from "@/data/restaurants";
 import { calculateMatchesFromSwipes, sortMatches } from "@/lib/match";
 import { makeRoomId } from "@/lib/mock";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -53,6 +53,7 @@ function mapRoom(row: RoomRow): Room {
     cuisines: row.cuisine_preference,
     participants: 0,
     status: row.status,
+    restaurantSource: row.restaurant_source ?? "local_pack",
     createdAt: row.created_at,
     finalRestaurantId: row.final_restaurant_id,
     friends: []
@@ -148,7 +149,8 @@ export async function createSupabaseRoom(input: CreateRoomInput, user: CurrentUs
       location: input.location.trim() || "附近",
       budget: input.budget,
       cuisine_preference: input.cuisines,
-      status: "open"
+      status: "open",
+      restaurant_source: "local_pack"
     })
     .select("*")
     .single();
@@ -431,6 +433,10 @@ export function subscribeToSupabaseRoom({
   };
 }
 
-export function getNextRestaurantForMember(state: SwipeState) {
-  return restaurants.find((restaurant) => !state.seenIds.includes(restaurant.id)) ?? null;
+export function getNextRestaurantForMember(state: SwipeState, location?: string) {
+  return (
+    getRestaurantsForLocation(location).find(
+      (restaurant) => !state.seenIds.includes(restaurant.id)
+    ) ?? null
+  );
 }

@@ -16,7 +16,7 @@ html {
 }
 
 body {
-  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   background: linear-gradient(150deg, #ecfffb 0%, #ffffff 48%, #fff7ed 100%);
   color: var(--foreground);
@@ -36,7 +36,7 @@ button {
 }
 
 .safe-bottom {
-  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  padding-bottom: calc(max(1.25rem, env(safe-area-inset-bottom)) + 0.25rem);
 }
 
 .no-scrollbar {

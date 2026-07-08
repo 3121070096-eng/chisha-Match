@@ -18,6 +18,7 @@ export type Database = {
           cuisine_preference: string[];
           status: "open" | "choosing" | "matched" | "decided" | "closed";
           final_restaurant_id: string | null;
+          restaurant_source: string;
           created_at: string;
         };
         Insert: {
@@ -28,6 +29,7 @@ export type Database = {
           cuisine_preference?: string[];
           status?: "open" | "choosing" | "matched" | "decided" | "closed";
           final_restaurant_id?: string | null;
+          restaurant_source?: string;
           created_at?: string;
         };
         Update: {
@@ -38,6 +40,7 @@ export type Database = {
           cuisine_preference?: string[];
           status?: "open" | "choosing" | "matched" | "decided" | "closed";
           final_restaurant_id?: string | null;
+          restaurant_source?: string;
           created_at?: string;
         };
         Relationships: [];
@@ -112,6 +115,182 @@ export type Database = {
             columns: ["room_id"];
             isOneToOne: false;
             referencedRelation: "rooms";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      feedback: {
+        Row: {
+          id: string;
+          room_id: string | null;
+          rating: "good" | "ok" | "bad";
+          comment: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          room_id?: string | null;
+          rating: "good" | "ok" | "bad";
+          comment?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          room_id?: string | null;
+          rating?: "good" | "ok" | "bad";
+          comment?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "feedback_room_id_fkey";
+            columns: ["room_id"];
+            isOneToOne: false;
+            referencedRelation: "rooms";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      events: {
+        Row: {
+          id: string;
+          room_id: string | null;
+          member_id: string | null;
+          event_name: string;
+          metadata: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          room_id?: string | null;
+          member_id?: string | null;
+          event_name: string;
+          metadata?: Json | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          room_id?: string | null;
+          member_id?: string | null;
+          event_name?: string;
+          metadata?: Json | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "events_room_id_fkey";
+            columns: ["room_id"];
+            isOneToOne: false;
+            referencedRelation: "rooms";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "events_member_id_fkey";
+            columns: ["member_id"];
+            isOneToOne: false;
+            referencedRelation: "room_members";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      restaurant_cache: {
+        Row: {
+          id: string;
+          source: string;
+          source_place_id: string;
+          name: string;
+          address: string | null;
+          lat: number | null;
+          lng: number | null;
+          area_key: string | null;
+          cuisine: string | null;
+          price_level: string | null;
+          rating: number | null;
+          distance_text: string | null;
+          tags: string[] | null;
+          images: string[] | null;
+          photo_refs: string[] | null;
+          raw: Json | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          source: string;
+          source_place_id: string;
+          name: string;
+          address?: string | null;
+          lat?: number | null;
+          lng?: number | null;
+          area_key?: string | null;
+          cuisine?: string | null;
+          price_level?: string | null;
+          rating?: number | null;
+          distance_text?: string | null;
+          tags?: string[] | null;
+          images?: string[] | null;
+          photo_refs?: string[] | null;
+          raw?: Json | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          source?: string;
+          source_place_id?: string;
+          name?: string;
+          address?: string | null;
+          lat?: number | null;
+          lng?: number | null;
+          area_key?: string | null;
+          cuisine?: string | null;
+          price_level?: string | null;
+          rating?: number | null;
+          distance_text?: string | null;
+          tags?: string[] | null;
+          images?: string[] | null;
+          photo_refs?: string[] | null;
+          raw?: Json | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      room_restaurants: {
+        Row: {
+          id: string;
+          room_id: string | null;
+          restaurant_id: string | null;
+          rank: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          room_id?: string | null;
+          restaurant_id?: string | null;
+          rank?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          room_id?: string | null;
+          restaurant_id?: string | null;
+          rank?: number | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "room_restaurants_room_id_fkey";
+            columns: ["room_id"];
+            isOneToOne: false;
+            referencedRelation: "rooms";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "room_restaurants_restaurant_id_fkey";
+            columns: ["restaurant_id"];
+            isOneToOne: false;
+            referencedRelation: "restaurant_cache";
             referencedColumns: ["id"];
           }
         ];

@@ -5,8 +5,10 @@ import { BottomNav } from "@/components/BottomNav";
 import { EmptyState } from "@/components/EmptyState";
 import { MatchModal } from "@/components/MatchModal";
 import { SwipeDeck } from "@/components/SwipeDeck";
-import { restaurants } from "@/data/restaurants";
+import { getRestaurantAreaKey, getRestaurantAreaLabel } from "@/data/restaurants";
+import { trackEvent } from "@/lib/analytics";
 import { findRestaurant } from "@/lib/match";
+import { getLocalRestaurantsForRoom } from "@/lib/restaurantSource";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
 import {
   clearRoomMemberSession,
@@ -44,6 +46,13 @@ type Popup = {
   restaurantId: string;
   likedBy: string[];
 };
+
+function markOnce(key: string) {
+  if (typeof window === "undefined") return false;
+  if (window.localStorage.getItem(key)) return false;
+  window.localStorage.setItem(key, "1");
+  return true;
+}
 
 export default function SwipePage() {
   const router = useRouter();
@@ -167,13 +176,50 @@ export default function SwipePage() {
   }, [currentMember?.id, refreshRoomForMember, room?.databaseId, roomCode]);
 
   const deckRestaurants = useMemo(() => {
-    if (!state) return [];
+    if (!state || !room) return [];
     const seenIds = new Set(state.seenIds);
-    return restaurants
+    return getLocalRestaurantsForRoom(room)
+      .restaurants
       .filter((restaurant) => !seenIds.has(restaurant.id))
       .slice(0, 4);
-  }, [state]);
+  }, [room, state]);
   const currentRestaurant = deckRestaurants[0] ?? null;
+  const restaurantSource = useMemo(
+    () => (room ? getLocalRestaurantsForRoom(room) : null),
+    [room]
+  );
+
+  useEffect(() => {
+    if (!room || !currentMember || !restaurantSource) return;
+
+    if (markOnce(`chisha:event:swipe_started:${room.id}:${currentMember.id}`)) {
+      void trackEvent({
+        roomId: room.id,
+        memberId: currentMember.id,
+        eventName: "swipe_started",
+        metadata: {
+          restaurant_count: restaurantSource.restaurants.length,
+          area_key: restaurantSource.areaKey,
+          restaurant_source: restaurantSource.restaurantSource
+        }
+      });
+    }
+
+    if (
+      restaurantSource.fallbackUsed &&
+      markOnce(`chisha:event:fallback_restaurants_used:${room.id}:${restaurantSource.requestedAreaKey}`)
+    ) {
+      void trackEvent({
+        roomId: room.id,
+        memberId: currentMember.id,
+        eventName: "fallback_restaurants_used",
+        metadata: {
+          requested_area_key: restaurantSource.requestedAreaKey,
+          fallback_area_key: restaurantSource.fallbackAreaKey
+        }
+      });
+    }
+  }, [currentMember, restaurantSource, room]);
 
   async function handleNickname(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -187,6 +233,16 @@ export default function SwipePage() {
       setRoom(remoteState.room);
       setCurrentMember(remoteState.currentMember);
       setState(remoteState.swipeState);
+      void trackEvent({
+        roomId: remoteState.room.id,
+        memberId: remoteState.currentMember.id,
+        eventName: "member_joined",
+        metadata: {
+          member_name: remoteState.currentMember.nickname,
+          room_location_label: getRestaurantAreaLabel(remoteState.room.location),
+          room_area_key: getRestaurantAreaKey(remoteState.room.location)
+        }
+      });
       setNeedsJoin(false);
       setBootstrapped(true);
     } catch (joinError) {
@@ -219,6 +275,17 @@ export default function SwipePage() {
         : current
     );
 
+    void trackEvent({
+      roomId: room.id,
+      memberId: currentMember.id,
+      eventName: decision === "like" ? "restaurant_liked" : "restaurant_passed",
+      metadata: {
+        restaurant_id: currentRestaurant.id,
+        restaurant_name: currentRestaurant.name,
+        area_key: currentRestaurant.area
+      }
+    });
+
     try {
       await writeSupabaseSwipe({
         roomDatabaseId: room.databaseId,
@@ -237,6 +304,18 @@ export default function SwipePage() {
       });
 
       if (newMatch) {
+        const matchedRestaurant = findRestaurant(newMatch.restaurantId, room.location);
+        void trackEvent({
+          roomId: room.id,
+          memberId: currentMember.id,
+          eventName: "match_created",
+          metadata: {
+            restaurant_id: newMatch.restaurantId,
+            restaurant_name: matchedRestaurant?.name ?? currentRestaurant.name,
+            matched_member_count: newMatch.count,
+            area_key: matchedRestaurant?.area ?? getRestaurantAreaKey(room.location)
+          }
+        });
         setPopup({
           restaurantId: newMatch.restaurantId,
           likedBy: newMatch.likedBy
@@ -337,7 +416,8 @@ export default function SwipePage() {
     );
   }
 
-  const popupRestaurant = popup ? findRestaurant(popup.restaurantId) : null;
+  const roomRestaurants = restaurantSource?.restaurants ?? [];
+  const popupRestaurant = popup ? findRestaurant(popup.restaurantId, room.location) : null;
 
   return (
     <AppChrome
@@ -364,7 +444,7 @@ export default function SwipePage() {
         state={state}
         currentRestaurant={currentRestaurant}
         deckRestaurants={deckRestaurants}
-        totalRestaurants={restaurants.length}
+        totalRestaurants={roomRestaurants.length}
         onDecision={handleDecision}
         onViewMatches={() => router.push(`/matches?roomId=${room.id}`)}
       />

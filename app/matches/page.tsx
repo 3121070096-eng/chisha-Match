@@ -4,6 +4,8 @@ import { AppChrome } from "@/components/AppChrome";
 import { BottomNav } from "@/components/BottomNav";
 import { EmptyState } from "@/components/EmptyState";
 import { MatchList } from "@/components/MatchList";
+import { getRestaurantAreaKey } from "@/data/restaurants";
+import { trackEvent } from "@/lib/analytics";
 import { getMatchItems } from "@/lib/match";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
 import { clearRoomMemberSession, getRoomMemberSession } from "@/lib/storage";
@@ -20,6 +22,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 function getRoomIdFromUrl() {
   if (typeof window === "undefined") return "";
   return new URLSearchParams(window.location.search).get("roomId") ?? "";
+}
+
+function markOnce(key: string) {
+  if (typeof window === "undefined") return false;
+  if (window.localStorage.getItem(key)) return false;
+  window.localStorage.setItem(key, "1");
+  return true;
 }
 
 export default function MatchesPage() {
@@ -100,9 +109,24 @@ export default function MatchesPage() {
   }, [refreshRoom]);
 
   const matchItems = useMemo(() => {
-    if (!state) return [];
-    return getMatchItems(state.matches);
-  }, [state]);
+    if (!state || !room) return [];
+    return getMatchItems(state.matches, room.location);
+  }, [room, state]);
+
+  useEffect(() => {
+    if (!room || !state) return;
+    if (!markOnce(`chisha:event:match_list_viewed:${room.id}`)) return;
+
+    void trackEvent({
+      roomId: room.id,
+      eventName: "match_list_viewed",
+      metadata: {
+        match_count: state.matches.length,
+        room_id: room.id,
+        area_key: getRestaurantAreaKey(room.location)
+      }
+    });
+  }, [room, state]);
 
   async function chooseFinal(restaurantId: string) {
     if (!state || !room?.databaseId) return;
@@ -111,6 +135,17 @@ export default function MatchesPage() {
       const updatedRoom = await chooseSupabaseFinalRestaurant({
         roomDatabaseId: room.databaseId,
         restaurantId
+      });
+      const item = matchItems.find((matchItem) => matchItem.restaurant.id === restaurantId);
+      void trackEvent({
+        roomId: room.id,
+        eventName: "final_decided",
+        metadata: {
+          restaurant_id: restaurantId,
+          restaurant_name: item?.restaurant.name ?? restaurantId,
+          area_key: item?.restaurant.area ?? getRestaurantAreaKey(room.location),
+          liked_member_count: item?.match.count ?? 0
+        }
       });
       setRoom(updatedRoom);
       setState({ ...state, finalRestaurantId: restaurantId });
@@ -171,6 +206,9 @@ export default function MatchesPage() {
         </div>
       ) : null}
       <section className="flex min-h-0 flex-1 flex-col px-5 pb-3 pt-1">
+        <p className="mb-2 rounded-full bg-white/82 px-3 py-2 text-xs font-black text-slate-500 shadow-sm ring-1 ring-teal-900/5">
+          饭局地点：{room.location}
+        </p>
         <MatchList
           items={matchItems}
           onChooseFinal={(restaurantId) => void chooseFinal(restaurantId)}

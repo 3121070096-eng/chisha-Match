@@ -2,6 +2,8 @@
 
 import { AppChrome } from "@/components/AppChrome";
 import { EmptyState } from "@/components/EmptyState";
+import { getRestaurantAreaKey, getRestaurantAreaLabel } from "@/data/restaurants";
+import { trackEvent } from "@/lib/analytics";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
 import {
   clearRoomMemberSession,
@@ -53,6 +55,16 @@ export default function RoomPage() {
       setRoom(state.room);
       setMembers(state.members);
       setCurrentMember(state.currentMember);
+      void trackEvent({
+        roomId: state.room.id,
+        memberId: state.currentMember.id,
+        eventName: "member_joined",
+        metadata: {
+          member_name: state.currentMember.nickname,
+          room_location_label: getRestaurantAreaLabel(state.room.location),
+          room_area_key: getRestaurantAreaKey(state.room.location)
+        }
+      });
       return state;
     },
     []
@@ -170,11 +182,21 @@ export default function RoomPage() {
   }
 
   async function handleCopy() {
-    if (!inviteLink) return;
+    if (!inviteLink || !room) return;
+    const activeRoom = room;
 
     try {
       await navigator.clipboard.writeText(inviteLink);
       setCopied(true);
+      void trackEvent({
+        roomId: activeRoom.id,
+        memberId: currentMember?.id,
+        eventName: "invite_copied",
+        metadata: {
+          invite_url_origin: window.location.origin,
+          room_status: activeRoom.status ?? "open"
+        }
+      });
       window.setTimeout(() => setCopied(false), 2200);
     } catch (copyError) {
       console.error("[Browser] copy invite link failed", copyError);
@@ -229,7 +251,8 @@ export default function RoomPage() {
             <div className="mt-5 grid grid-cols-3 gap-2 text-sm font-black">
               <div className="rounded-lg bg-white/14 p-3">
                 <MapPin size={17} />
-                <p className="mt-2 line-clamp-2">{room.location}</p>
+                <p className="mt-2 text-xs text-teal-100">饭局地点</p>
+                <p className="mt-1 line-clamp-2">{room.location}</p>
               </div>
               <div className="rounded-lg bg-white/14 p-3">
                 <Wallet size={17} />

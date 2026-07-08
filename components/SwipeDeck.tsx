@@ -3,7 +3,12 @@
 import { RestaurantCard } from "@/components/RestaurantCard";
 import { RestaurantDetailSheet } from "@/components/RestaurantDetailSheet";
 import type { Restaurant } from "@/data/restaurants";
-import { getRestaurantCover, preloadRestaurantImages } from "@/lib/restaurantImages";
+import { trackImageLoadFailed } from "@/lib/analytics";
+import {
+  getRestaurantCover,
+  preloadRestaurantImages,
+  useFallbackImage
+} from "@/lib/restaurantImages";
 import type { Room, SwipeDecision, SwipeState } from "@/types";
 import { motion } from "framer-motion";
 import { CircleHelp, Heart, ListChecks, UtensilsCrossed, X } from "lucide-react";
@@ -56,7 +61,7 @@ export function SwipeDeck({
     <section className="flex min-h-0 flex-1 flex-col px-4 pb-2 pt-0">
       <div className="mb-1 flex items-center justify-between gap-3 px-1">
         <p className="min-w-0 truncate text-xs font-black text-slate-500">
-          {room.name}
+          {room.location} · {room.name}
         </p>
         <button
           type="button"
@@ -206,7 +211,12 @@ function RestaurantStackPreview({
             className="h-full w-full object-cover"
             draggable={false}
             loading={depth === 1 ? "eager" : "lazy"}
+            fetchPriority={depth === 1 ? "high" : "auto"}
             decoding="async"
+            onError={(event) => {
+              trackImageLoadFailed(restaurant, getRestaurantCover(restaurant));
+              useFallbackImage(event.currentTarget);
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/65 via-slate-950/8 to-transparent" />
           <div className="absolute bottom-4 left-5 right-5 text-white">

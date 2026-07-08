@@ -24,6 +24,7 @@ export type Room = {
   cuisines: string[];
   participants: number;
   status?: "open" | "choosing" | "matched" | "decided" | "closed";
+  restaurantSource?: "local_pack" | "api" | "api_fallback" | string;
   createdAt: string;
   createdByMemberId?: string | null;
   finalRestaurantId?: string | null;

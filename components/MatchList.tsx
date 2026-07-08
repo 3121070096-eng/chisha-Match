@@ -1,7 +1,8 @@
 "use client";
 
 import type { MatchItem } from "@/types";
-import { getRestaurantCover } from "@/lib/restaurantImages";
+import { trackImageLoadFailed } from "@/lib/analytics";
+import { getRestaurantCover, useFallbackImage } from "@/lib/restaurantImages";
 import { motion } from "framer-motion";
 import { Crown, Heart, MapPin, Star, Trophy, UsersRound, Wallet } from "lucide-react";
 
@@ -74,6 +75,15 @@ export function MatchList({ items, onChooseFinal, onContinueSwipe }: MatchListPr
                   src={getRestaurantCover(restaurant)}
                   alt={restaurant.name}
                   className="h-full w-full object-cover"
+                  width={720}
+                  height={420}
+                  loading={index === 0 ? "eager" : "lazy"}
+                  fetchPriority={index === 0 ? "high" : "auto"}
+                  decoding="async"
+                  onError={(event) => {
+                    trackImageLoadFailed(restaurant, getRestaurantCover(restaurant));
+                    useFallbackImage(event.currentTarget);
+                  }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent" />
                 <div

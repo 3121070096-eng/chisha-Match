@@ -16,7 +16,7 @@ export function AppChrome({ children, showBack, title, rightSlot }: AppChromePro
 
   return (
     <main className="min-h-dvh bg-[linear-gradient(145deg,#f0fffb_0%,#ffffff_46%,#fff7ed_100%)] text-slate-950">
-      <div className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col overflow-hidden bg-white/45 shadow-[0_20px_70px_rgba(15,118,110,0.14)]">
+      <div className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col bg-white/45 shadow-[0_20px_70px_rgba(15,118,110,0.14)]">
         <header className="flex h-16 shrink-0 items-center justify-between px-5 pt-2 backdrop-blur">
           <div className="flex min-w-0 items-center gap-3">
             {showBack ? (

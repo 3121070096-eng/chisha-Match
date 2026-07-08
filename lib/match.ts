@@ -1,4 +1,4 @@
-import { restaurants } from "@/data/restaurants";
+import { findRestaurantInLocation, getRestaurantsForLocation } from "@/data/restaurants";
 import type {
   CurrentUser,
   MatchItem,
@@ -17,14 +17,14 @@ export function sortMatches(matches: MatchRecord[]) {
   });
 }
 
-export function findRestaurant(restaurantId: string) {
-  return restaurants.find((restaurant) => restaurant.id === restaurantId) ?? null;
+export function findRestaurant(restaurantId: string, location?: string) {
+  return findRestaurantInLocation(restaurantId, location);
 }
 
-export function getMatchItems(matches: MatchRecord[]): MatchItem[] {
+export function getMatchItems(matches: MatchRecord[], location?: string): MatchItem[] {
   return sortMatches(matches)
     .map((match) => {
-      const restaurant = findRestaurant(match.restaurantId);
+      const restaurant = findRestaurant(match.restaurantId, location);
       return restaurant ? { match, restaurant } : null;
     })
     .filter((item): item is MatchItem => item !== null);
@@ -62,7 +62,7 @@ export function hydrateMatches(room: Room, state: SwipeState, currentUser: Curre
     state.matches.map((match) => [match.restaurantId, match])
   );
 
-  const matches = restaurants.flatMap((restaurant) => {
+  const matches = getRestaurantsForLocation(room.location).flatMap((restaurant) => {
     if (!userLiked.has(restaurant.id)) return [];
 
     const match = buildMatchRecord(

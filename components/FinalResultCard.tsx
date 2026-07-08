@@ -1,7 +1,8 @@
 "use client";
 
 import type { MatchItem } from "@/types";
-import { getRestaurantCover } from "@/lib/restaurantImages";
+import { trackImageLoadFailed } from "@/lib/analytics";
+import { getRestaurantCover, useFallbackImage } from "@/lib/restaurantImages";
 import { motion } from "framer-motion";
 import { CheckCircle2, Heart, MapPin, PartyPopper, Star, Wallet } from "lucide-react";
 
@@ -23,6 +24,15 @@ export function FinalResultCard({ item }: FinalResultCardProps) {
           src={getRestaurantCover(restaurant)}
           alt={restaurant.name}
           className="absolute inset-0 h-full w-full object-cover"
+          width={720}
+          height={960}
+          loading="eager"
+          fetchPriority="high"
+          decoding="async"
+          onError={(event) => {
+            trackImageLoadFailed(restaurant, getRestaurantCover(restaurant));
+            useFallbackImage(event.currentTarget);
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/42 to-slate-950/5" />
         <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-full bg-amber-400 px-4 py-2 text-sm font-black text-slate-950 shadow-lg shadow-slate-950/20">

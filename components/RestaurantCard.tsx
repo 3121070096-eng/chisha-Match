@@ -1,7 +1,13 @@
 "use client";
 
 import type { Restaurant } from "@/data/restaurants";
-import { getRestaurantImages, preloadRestaurantImages } from "@/lib/restaurantImages";
+import { trackImageLoadFailed } from "@/lib/analytics";
+import {
+  getRestaurantImages,
+  preloadRestaurantImages,
+  restaurantFallbackImage,
+  useFallbackImage
+} from "@/lib/restaurantImages";
 import type { SwipeDecision } from "@/types";
 import {
   ChevronRight,
@@ -17,7 +23,7 @@ import {
   useMotionValue,
   useTransform
 } from "framer-motion";
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 
 type RestaurantCardProps = {
   restaurant: Restaurant;
@@ -43,11 +49,10 @@ export const RestaurantCard = memo(function RestaurantCard({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [imageIndex, setImageIndex] = useState(0);
+  const imageRef = useRef<HTMLImageElement | null>(null);
   const images = useMemo(() => getRestaurantImages(restaurant), [restaurant]);
   const activeImage = images[imageIndex] ?? images[0] ?? "";
-  const fallbackImage =
-    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 900 1200'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop stop-color='%230f766e'/%3E%3Cstop offset='0.52' stop-color='%2314b8a6'/%3E%3Cstop offset='1' stop-color='%23f59e0b'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='900' height='1200' fill='url(%23g)'/%3E%3Ctext x='50%25' y='50%25' fill='white' font-size='54' font-family='Arial, sans-serif' font-weight='700' text-anchor='middle'%3E%E5%90%83%E5%95%A5%20Match%3C/text%3E%3C/svg%3E";
-  const imageSrc = imageFailed ? fallbackImage : activeImage;
+  const imageSrc = imageFailed ? restaurantFallbackImage : activeImage;
 
   useEffect(() => {
     setImageIndex(0);
@@ -114,7 +119,7 @@ export const RestaurantCard = memo(function RestaurantCard({
         className="absolute inset-0 overflow-hidden rounded-lg bg-white shadow-[0_26px_70px_rgba(15,118,110,0.22)] ring-1 ring-teal-900/10"
       >
         <div className="relative h-[78%] overflow-hidden bg-teal-100">
-          <div className="absolute left-3 right-3 top-3 z-20 flex gap-1.5">
+          <div className="absolute left-3 right-3 top-3 z-40 flex gap-1.5">
             {images.map((image) => (
               <span
                 key={image}
@@ -125,42 +130,53 @@ export const RestaurantCard = memo(function RestaurantCard({
             ))}
           </div>
           <div
-            className={`absolute inset-0 bg-gradient-to-br from-teal-100 via-white to-amber-100 transition-opacity duration-300 ${
+            className={`absolute inset-0 z-0 bg-gradient-to-br from-teal-100 via-white to-amber-100 transition-opacity duration-300 ${
               imageLoaded ? "opacity-0" : "opacity-100"
             }`}
           />
           <motion.img
             key={imageSrc}
+            ref={(node) => {
+              imageRef.current = node;
+              if (node?.complete && node.naturalWidth > 0 && !imageLoaded) {
+                setImageLoaded(true);
+              }
+            }}
             src={imageSrc}
             alt={restaurant.name}
             initial={{ opacity: 0.35, scale: 1.015 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.18 }}
-            className="h-full w-full object-cover"
+            className="relative z-10 h-full w-full object-cover"
+            width={720}
+            height={960}
+            sizes="(max-width: 430px) 100vw, 430px"
             draggable={false}
             loading={priority ? "eager" : "lazy"}
             decoding="async"
             fetchPriority={priority ? "high" : "auto"}
             onLoad={() => setImageLoaded(true)}
-            onError={() => {
+            onError={(event) => {
               setImageFailed(true);
+              trackImageLoadFailed(restaurant, imageSrc);
+              useFallbackImage(event.currentTarget);
               setImageLoaded(true);
             }}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/76 via-slate-950/10 to-transparent" />
-          <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-white/92 px-3 py-2 text-sm font-black text-teal-700 shadow-sm backdrop-blur">
+          <div className="pointer-events-none absolute inset-0 z-20 bg-gradient-to-t from-slate-950/76 via-slate-950/10 to-transparent" />
+          <div className="absolute left-4 top-4 z-30 flex items-center gap-2 rounded-full bg-white/92 px-3 py-2 text-sm font-black text-teal-700 shadow-sm backdrop-blur">
             <Utensils size={16} />
             {restaurant.cuisine}
           </div>
           <motion.div
             style={{ opacity: likeOpacity, scale: likeScale }}
-            className="pointer-events-none absolute right-5 top-20 z-30 -rotate-6 rounded-lg border-4 border-teal-400 bg-white/92 px-5 py-2 text-2xl font-black text-teal-500 shadow-lg"
+            className="pointer-events-none absolute right-5 top-20 z-40 -rotate-6 rounded-lg border-4 border-teal-400 bg-white/92 px-5 py-2 text-2xl font-black text-teal-500 shadow-lg"
           >
             想吃
           </motion.div>
           <motion.div
             style={{ opacity: skipOpacity, scale: skipScale }}
-            className="pointer-events-none absolute left-5 top-20 z-30 rotate-6 rounded-lg border-4 border-rose-400 bg-white/92 px-5 py-2 text-2xl font-black text-rose-500 shadow-lg"
+            className="pointer-events-none absolute left-5 top-20 z-40 rotate-6 rounded-lg border-4 border-rose-400 bg-white/92 px-5 py-2 text-2xl font-black text-rose-500 shadow-lg"
           >
             不想吃
           </motion.div>
@@ -171,7 +187,7 @@ export const RestaurantCard = memo(function RestaurantCard({
               event.stopPropagation();
               switchImage(-1);
             }}
-            className="absolute bottom-24 left-0 top-8 z-10 w-1/2"
+            className="absolute bottom-24 left-0 top-8 z-30 w-1/2"
           />
           <button
             type="button"
@@ -180,9 +196,9 @@ export const RestaurantCard = memo(function RestaurantCard({
               event.stopPropagation();
               switchImage(1);
             }}
-            className="absolute bottom-24 right-0 top-8 z-10 w-1/2"
+            className="absolute bottom-24 right-0 top-8 z-30 w-1/2"
           />
-          <div className="absolute inset-x-0 bottom-4 px-5 text-white">
+          <div className="absolute inset-x-0 bottom-4 z-30 px-5 text-white">
             <button
               type="button"
               onPointerDown={(event) => event.stopPropagation()}

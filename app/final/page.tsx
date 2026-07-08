@@ -3,6 +3,7 @@
 import { AppChrome } from "@/components/AppChrome";
 import { BottomNav } from "@/components/BottomNav";
 import { EmptyState } from "@/components/EmptyState";
+import { FeedbackPanel } from "@/components/FeedbackPanel";
 import { FinalResultCard } from "@/components/FinalResultCard";
 import { findRestaurant, getMatchItems } from "@/lib/match";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
@@ -100,14 +101,14 @@ export default function FinalPage() {
   }, [refreshRoom]);
 
   const finalItem = useMemo<MatchItem | null>(() => {
-    if (!state?.finalRestaurantId) return null;
-    const matchedItem = getMatchItems(state.matches).find(
+    if (!state?.finalRestaurantId || !room) return null;
+    const matchedItem = getMatchItems(state.matches, room.location).find(
       (item) => item.restaurant.id === state.finalRestaurantId
     );
 
     if (matchedItem) return matchedItem;
 
-    const restaurant = findRestaurant(state.finalRestaurantId);
+    const restaurant = findRestaurant(state.finalRestaurantId, room.location);
     if (!restaurant) return null;
 
     return {
@@ -120,7 +121,7 @@ export default function FinalPage() {
         matchedAt: new Date().toISOString()
       }
     };
-  }, [state]);
+  }, [room, state]);
 
   async function resetFinal() {
     if (!room?.databaseId) return;
@@ -200,10 +201,14 @@ export default function FinalPage() {
         </div>
       ) : null}
       <section className="flex flex-1 flex-col px-5 pb-3 pt-1">
+        <p className="mb-2 rounded-full bg-white/82 px-3 py-2 text-xs font-black text-slate-500 shadow-sm ring-1 ring-teal-900/5">
+          饭局地点：{room.location}
+        </p>
         {finalItem ? (
           <>
             <FinalResultCard item={finalItem} />
             <div className="safe-bottom mt-4 space-y-3">
+              <FeedbackPanel roomId={room.id} />
               <p className="rounded-lg bg-white/88 px-4 py-3 text-center text-sm font-black text-slate-600 shadow-sm ring-1 ring-teal-900/5">
                 把结果发给朋友，别再纠结啦。
               </p>

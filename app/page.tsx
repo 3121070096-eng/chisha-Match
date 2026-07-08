@@ -1,11 +1,13 @@
 "use client";
 
 import { AppChrome } from "@/components/AppChrome";
-import { restaurants } from "@/data/restaurants";
-import { getRestaurantCover } from "@/lib/restaurantImages";
+import { getRestaurantAreaKey, getRestaurantAreaLabel } from "@/data/restaurants";
+import { trackEvent } from "@/lib/analytics";
+import { getRestaurantCover, useFallbackImage } from "@/lib/restaurantImages";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
 import { getCurrentUser, saveCurrentUser, saveRoomMemberSession } from "@/lib/storage";
 import { joinSupabaseRoom } from "@/lib/supabaseRooms";
+import { getDemoRestaurants } from "@/lib/restaurantSource";
 import { motion } from "framer-motion";
 import { ChevronRight, Heart, LogIn, Play, Plus, Sparkles, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -14,6 +16,7 @@ import { FormEvent, useEffect, useState } from "react";
 export default function HomePage() {
   const router = useRouter();
   const steps = ["创建饭局", "发链接给朋友", "一起左右滑餐厅", "自动 Match 那家"];
+  const homeRestaurants = getDemoRestaurants();
   const [joinOpen, setJoinOpen] = useState(false);
   const [nickname, setNickname] = useState("");
   const [code, setCode] = useState("");
@@ -40,6 +43,16 @@ export default function HomePage() {
       const user = saveCurrentUser(nickname || "饭友");
       const { room, member } = await joinSupabaseRoom(code, user);
       saveRoomMemberSession(room.id, member, user.id);
+      void trackEvent({
+        roomId: room.id,
+        memberId: member.id,
+        eventName: "member_joined",
+        metadata: {
+          member_name: member.nickname,
+          room_location_label: getRestaurantAreaLabel(room.location),
+          room_area_key: getRestaurantAreaKey(room.location)
+        }
+      });
       router.push(`/room?roomId=${room.id}`);
     } catch (joinError) {
       console.error("[Home] join room failed", joinError);
@@ -67,9 +80,15 @@ export default function HomePage() {
           <div>
             <div className="relative min-h-[430px] overflow-hidden rounded-lg bg-slate-950 text-white shadow-[0_24px_70px_rgba(15,118,110,0.22)]">
               <img
-                src={getRestaurantCover(restaurants[9])}
+                src={getRestaurantCover(homeRestaurants[9])}
                 alt="朋友聚餐"
                 className="absolute inset-0 h-full w-full object-cover"
+                width={720}
+                height={960}
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                onError={(event) => useFallbackImage(event.currentTarget)}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/48 to-slate-950/10" />
               <div className="absolute right-5 top-5 flex rotate-[-6deg] items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-black text-teal-600 shadow-lg">
@@ -87,7 +106,7 @@ export default function HomePage() {
                   创建饭局，邀请朋友，一起左右滑餐厅，自动匹配大家都想吃的那家。
                 </p>
                 <div className="mt-6 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                  {restaurants.slice(0, 4).map((restaurant) => (
+                  {homeRestaurants.slice(0, 4).map((restaurant) => (
                     <div
                       key={restaurant.id}
                       className="shrink-0 rounded-full bg-white/14 px-3 py-2 text-xs font-black backdrop-blur"
@@ -101,8 +120,8 @@ export default function HomePage() {
 
             <div className="mt-5 grid grid-cols-3 gap-3">
               <div className="rounded-lg bg-white/88 px-3 py-4 text-center shadow-sm ring-1 ring-teal-900/5">
-                <p className="text-xl font-black text-slate-950">20</p>
-                <p className="mt-1 text-xs font-black text-slate-500">候选餐厅</p>
+                <p className="text-xl font-black text-slate-950">多区域</p>
+                <p className="mt-1 text-xs font-black text-slate-500">餐厅池</p>
               </div>
               <div className="rounded-lg bg-white/88 px-3 py-4 text-center shadow-sm ring-1 ring-teal-900/5">
                 <Heart size={21} className="mx-auto fill-rose-400 text-rose-400" />

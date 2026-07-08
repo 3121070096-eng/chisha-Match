@@ -1,6 +1,12 @@
 "use client";
 
-import { cuisines } from "@/data/restaurants";
+import {
+  CUSTOM_LOCATION_LABEL,
+  cuisines,
+  getRestaurantAreaKey,
+  locationOptions
+} from "@/data/restaurants";
+import { trackEvent } from "@/lib/analytics";
 import type { CreateRoomInput } from "@/types";
 import { motion } from "framer-motion";
 import { MapPin, Plus, SlidersHorizontal, Users, Utensils, Wallet } from "lucide-react";
@@ -15,10 +21,12 @@ type CreateRoomFormProps = {
 
 export function CreateRoomForm({ onCreate, disabled }: CreateRoomFormProps) {
   const [name, setName] = useState("周五晚饭局");
-  const [location, setLocation] = useState("新天地附近");
+  const [locationChoice, setLocationChoice] = useState("当前位置附近");
+  const [customLocation, setCustomLocation] = useState("");
   const [budget, setBudget] = useState(120);
   const [participants, setParticipants] = useState(4);
   const [selectedCuisines, setSelectedCuisines] = useState<string[]>(defaultCuisines);
+  const isCustomLocation = locationChoice === CUSTOM_LOCATION_LABEL;
 
   function toggleCuisine(cuisine: string) {
     setSelectedCuisines((current) =>
@@ -30,12 +38,27 @@ export function CreateRoomForm({ onCreate, disabled }: CreateRoomFormProps) {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const location = isCustomLocation
+      ? customLocation.trim() || "当前位置附近"
+      : locationChoice;
+
     onCreate({
       name,
       location,
       budget,
       participants,
       cuisines: selectedCuisines
+    });
+  }
+
+  function trackLocationSelected(locationLabel: string, isCustomLocation: boolean) {
+    void trackEvent({
+      eventName: "location_selected",
+      metadata: {
+        location_label: locationLabel,
+        area_key: getRestaurantAreaKey(locationLabel),
+        is_custom_location: isCustomLocation
+      }
     });
   }
 
@@ -53,7 +76,7 @@ export function CreateRoomForm({ onCreate, disabled }: CreateRoomFormProps) {
           </div>
           <h1 className="mt-4 text-3xl font-black leading-tight">先把大家的口味圈出来</h1>
           <p className="mt-3 text-sm font-semibold leading-6 text-slate-300">
-            V1 使用本地餐厅数据和模拟好友，创建后即可完整体验 Match 流程。
+            先选集合区域，再让大家一起滑附近的体验版餐厅池。
           </p>
         </div>
 
@@ -66,17 +89,57 @@ export function CreateRoomForm({ onCreate, disabled }: CreateRoomFormProps) {
           />
         </label>
 
-        <label className="block text-sm font-black text-slate-700">
-          地点
-          <div className="mt-2 flex h-12 items-center gap-3 rounded-lg border border-teal-900/10 bg-white px-4 shadow-sm focus-within:border-teal-400">
-            <MapPin size={19} className="text-teal-500" />
-            <input
-              value={location}
-              onChange={(event) => setLocation(event.target.value)}
-              className="min-w-0 flex-1 bg-transparent text-base font-bold outline-none"
-            />
+        <div className="block text-sm font-black text-slate-700">
+          <div className="mb-2 flex items-center gap-2">
+            <MapPin size={18} className="text-teal-500" />
+            饭局地点
           </div>
-        </label>
+          <div className="grid grid-cols-2 gap-2">
+            {locationOptions.map((option) => {
+              const active = locationChoice === option.label;
+
+              return (
+                <button
+                  key={option.label}
+                  type="button"
+                  onClick={() => {
+                    setLocationChoice(option.label);
+                    trackLocationSelected(option.label, option.key === "custom");
+                  }}
+                  className={`min-h-16 rounded-lg px-3 py-3 text-left transition ${
+                    active
+                      ? "bg-teal-500 text-white shadow-md shadow-teal-500/20"
+                      : "bg-white text-slate-700 ring-1 ring-teal-900/10"
+                  }`}
+                >
+                  <span className="block text-sm font-black">{option.label}</span>
+                  <span
+                    className={`mt-1 block text-[11px] font-bold leading-4 ${
+                      active ? "text-teal-50" : "text-slate-400"
+                    }`}
+                  >
+                    {option.hint}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {isCustomLocation ? (
+            <div className="mt-3 flex h-12 items-center gap-3 rounded-lg border border-teal-900/10 bg-white px-4 shadow-sm focus-within:border-teal-400">
+              <MapPin size={19} className="text-teal-500" />
+              <input
+                value={customLocation}
+                onChange={(event) => setCustomLocation(event.target.value)}
+                onBlur={(event) => {
+                  const value = event.target.value.trim();
+                  if (value) trackLocationSelected(value, true);
+                }}
+                placeholder="比如：新天地、徐家汇、公司楼下"
+                className="min-w-0 flex-1 bg-transparent text-base font-bold outline-none"
+              />
+            </div>
+          ) : null}
+        </div>
 
         <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
           <div className="flex items-center justify-between">

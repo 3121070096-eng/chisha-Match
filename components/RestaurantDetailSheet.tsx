@@ -1,7 +1,12 @@
 "use client";
 
 import type { Restaurant } from "@/data/restaurants";
-import { getRestaurantImages, preloadRestaurantImages } from "@/lib/restaurantImages";
+import { trackImageLoadFailed } from "@/lib/analytics";
+import {
+  getRestaurantImages,
+  preloadRestaurantImages,
+  useFallbackImage
+} from "@/lib/restaurantImages";
 import type { SwipeDecision } from "@/types";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -92,7 +97,17 @@ export function RestaurantDetailSheet({
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.18 }}
                   className="h-full w-full object-cover"
+                  width={720}
+                  height={960}
+                  sizes="(max-width: 430px) 100vw, 430px"
                   draggable={false}
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="async"
+                  onError={(event) => {
+                    trackImageLoadFailed(restaurant, activeImage);
+                    useFallbackImage(event.currentTarget);
+                  }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-slate-950/10" />
                 <button
@@ -223,7 +238,7 @@ export function RestaurantDetailSheet({
               </div>
             </div>
 
-            <div className="safe-bottom grid grid-cols-2 gap-3 border-t border-slate-100 bg-white px-5 py-4">
+            <div className="safe-bottom grid grid-cols-2 gap-3 border-t border-slate-100 bg-white px-5 pt-4">
               <button
                 type="button"
                 onClick={() => choose("skip")}

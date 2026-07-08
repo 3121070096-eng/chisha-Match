@@ -65,6 +65,16 @@ export function getReadableSupabaseError(error: unknown, fallback: string) {
     lowerMessage.includes("relation") ||
     lowerMessage.includes("does not exist")
   ) {
+    if (
+      lowerMessage.includes("feedback") ||
+      lowerMessage.includes("events") ||
+      lowerMessage.includes("restaurant_source") ||
+      lowerMessage.includes("restaurant_cache") ||
+      lowerMessage.includes("room_restaurants")
+    ) {
+      return "Supabase 表结构还没有更新到 V2.4/V3 预留版本。请在 Supabase SQL Editor 执行 supabase/migrate-v24-feedback-events.sql、supabase/migrate-v30-restaurant-source.sql；如需真实 API 缓存预留，再执行 supabase/migrate-v30-restaurant-cache.sql。";
+    }
+
     return "Supabase 表结构还没有更新。请在 Supabase SQL Editor 执行项目里的 supabase/schema.sql；如果之前执行过旧版本 schema，需要先迁移或重建 rooms、room_members、swipes 三张表。";
   }
 

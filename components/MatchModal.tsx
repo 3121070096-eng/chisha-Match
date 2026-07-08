@@ -1,7 +1,8 @@
 "use client";
 
 import type { Restaurant } from "@/data/restaurants";
-import { getRestaurantCover } from "@/lib/restaurantImages";
+import { trackImageLoadFailed } from "@/lib/analytics";
+import { getRestaurantCover, useFallbackImage } from "@/lib/restaurantImages";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, ListChecks, Sparkles, X } from "lucide-react";
 
@@ -50,6 +51,15 @@ export function MatchModal({
                 src={getRestaurantCover(restaurant)}
                 alt={restaurant.name}
                 className="h-full w-full object-cover"
+                width={720}
+                height={420}
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                onError={(event) => {
+                  trackImageLoadFailed(restaurant, getRestaurantCover(restaurant));
+                  useFallbackImage(event.currentTarget);
+                }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-teal-950/75 via-teal-900/10 to-transparent" />
               <motion.div
