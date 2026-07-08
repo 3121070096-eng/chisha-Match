@@ -1,15 +1,63 @@
+export type RestaurantReview = {
+  id: string;
+  author: string;
+  rating: number;
+  text: string;
+};
+
 export type Restaurant = {
   id: string;
   name: string;
   image: string;
+  images: string[];
   cuisine: string;
   price: number;
   rating: number;
   distance: string;
   tags: string[];
+  description?: string;
+  recommendedReason?: string;
+  bestFor?: string[];
+  reviews?: RestaurantReview[];
 };
 
-export const restaurants: Restaurant[] = [
+type BaseRestaurant = Omit<
+  Restaurant,
+  "images" | "description" | "recommendedReason" | "bestFor" | "reviews"
+> & {
+  image: string;
+};
+
+const extraImages = [
+  "https://images.unsplash.com/photo-1551218808-94e220e084d2?auto=format&fit=crop&w=900&q=82",
+  "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=900&q=82",
+  "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=900&q=82",
+  "https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=900&q=82",
+  "https://images.unsplash.com/photo-1533777324565-a040eb52fac1?auto=format&fit=crop&w=900&q=82",
+  "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=900&q=82",
+  "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=82",
+  "https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?auto=format&fit=crop&w=900&q=82",
+  "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=900&q=82",
+  "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=900&q=82"
+];
+
+const bestForPool = [
+  ["朋友小聚", "不想踩雷", "边吃边聊"],
+  ["下班回血", "多人局", "热闹一点"],
+  ["约会轻松局", "拍照好看", "慢慢吃"],
+  ["工作日快决策", "预算友好", "吃完继续安排"],
+  ["想吃点特别的", "分享菜", "周末饭局"]
+];
+
+const reviewPool = [
+  "体验版食评：味道很稳，适合那种大家都没主意但又想吃舒服一点的晚上。",
+  "体验版食评：环境不会太吵，聊天不费嗓子，点几个招牌菜基本不出错。",
+  "体验版食评：菜品记忆点够，适合发到群里让朋友秒回“可以”。",
+  "体验版食评：人均和氛围都比较友好，适合临时成局。",
+  "体验版食评：整体轻松不端着，适合把纠结时间省下来直接开吃。"
+];
+
+const baseRestaurants: BaseRestaurant[] = [
   {
     id: "r-001",
     name: "青柠小馆",
@@ -231,6 +279,40 @@ export const restaurants: Restaurant[] = [
     tags: ["煎饺", "新奇", "小聚"]
   }
 ];
+
+function enrichRestaurant(restaurant: BaseRestaurant, index: number): Restaurant {
+  const images = [
+    restaurant.image,
+    extraImages[index % extraImages.length],
+    extraImages[(index + 4) % extraImages.length]
+  ];
+  const tagsText = restaurant.tags.slice(0, 2).join("、");
+  const bestFor = bestForPool[index % bestForPool.length];
+
+  return {
+    ...restaurant,
+    images,
+    description: `${restaurant.name} 是一家偏${tagsText}的${restaurant.cuisine}小馆，适合在朋友都拿不定主意时快速达成共识。`,
+    recommendedReason: `${restaurant.cuisine}辨识度够，价格在 ¥${restaurant.price}/人左右，距离 ${restaurant.distance}，属于“发到群里不会冷场”的候选。`,
+    bestFor,
+    reviews: [
+      {
+        id: `${restaurant.id}-review-1`,
+        author: "饭局体验官",
+        rating: Math.min(5, Number((restaurant.rating + 0.1).toFixed(1))),
+        text: reviewPool[index % reviewPool.length]
+      },
+      {
+        id: `${restaurant.id}-review-2`,
+        author: "选择困难小分队",
+        rating: restaurant.rating,
+        text: `体验版食评：${bestFor[0]}的时候很合适，${restaurant.tags[0]}这个点比较加分。`
+      }
+    ]
+  };
+}
+
+export const restaurants: Restaurant[] = baseRestaurants.map(enrichRestaurant);
 
 export const cuisines = Array.from(
   new Set(restaurants.map((restaurant) => restaurant.cuisine))

@@ -1,6 +1,7 @@
 "use client";
 
 import type { MatchItem } from "@/types";
+import { getRestaurantCover } from "@/lib/restaurantImages";
 import { motion } from "framer-motion";
 import { Crown, Heart, MapPin, Star, Trophy, UsersRound, Wallet } from "lucide-react";
 
@@ -70,7 +71,7 @@ export function MatchList({ items, onChooseFinal, onContinueSwipe }: MatchListPr
             >
               <div className="relative h-40">
                 <img
-                  src={restaurant.image}
+                  src={getRestaurantCover(restaurant)}
                   alt={restaurant.name}
                   className="h-full w-full object-cover"
                 />

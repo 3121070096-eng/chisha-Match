@@ -2,6 +2,7 @@
 
 import { AppChrome } from "@/components/AppChrome";
 import { restaurants } from "@/data/restaurants";
+import { getRestaurantCover } from "@/lib/restaurantImages";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
 import { getCurrentUser, saveCurrentUser, saveRoomMemberSession } from "@/lib/storage";
 import { joinSupabaseRoom } from "@/lib/supabaseRooms";
@@ -66,7 +67,7 @@ export default function HomePage() {
           <div>
             <div className="relative min-h-[430px] overflow-hidden rounded-lg bg-slate-950 text-white shadow-[0_24px_70px_rgba(15,118,110,0.22)]">
               <img
-                src={restaurants[9].image}
+                src={getRestaurantCover(restaurants[9])}
                 alt="朋友聚餐"
                 className="absolute inset-0 h-full w-full object-cover"
               />

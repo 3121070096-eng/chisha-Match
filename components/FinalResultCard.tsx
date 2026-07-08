@@ -1,6 +1,7 @@
 "use client";
 
 import type { MatchItem } from "@/types";
+import { getRestaurantCover } from "@/lib/restaurantImages";
 import { motion } from "framer-motion";
 import { CheckCircle2, Heart, MapPin, PartyPopper, Star, Wallet } from "lucide-react";
 
@@ -19,7 +20,7 @@ export function FinalResultCard({ item }: FinalResultCardProps) {
     >
       <div className="relative min-h-[540px] flex-1 overflow-hidden rounded-lg bg-slate-950 text-white shadow-[0_24px_70px_rgba(15,118,110,0.22)]">
         <img
-          src={restaurant.image}
+          src={getRestaurantCover(restaurant)}
           alt={restaurant.name}
           className="absolute inset-0 h-full w-full object-cover"
         />

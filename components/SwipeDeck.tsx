@@ -1,11 +1,13 @@
 "use client";
 
 import { RestaurantCard } from "@/components/RestaurantCard";
+import { RestaurantDetailSheet } from "@/components/RestaurantDetailSheet";
 import type { Restaurant } from "@/data/restaurants";
+import { getRestaurantCover, preloadRestaurantImages } from "@/lib/restaurantImages";
 import type { Room, SwipeDecision, SwipeState } from "@/types";
 import { motion } from "framer-motion";
-import { Heart, ListChecks, UtensilsCrossed, X } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { CircleHelp, Heart, ListChecks, UtensilsCrossed, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 type SwipeDeckProps = {
   room: Room;
@@ -26,6 +28,8 @@ export function SwipeDeck({
   onDecision,
   onViewMatches
 }: SwipeDeckProps) {
+  const [showHelp, setShowHelp] = useState(false);
+  const [detailRestaurant, setDetailRestaurant] = useState<Restaurant | null>(null);
   const selectedCount = Math.min(state.seenIds.length, totalRestaurants);
   const progress = totalRestaurants
     ? Math.round((selectedCount / totalRestaurants) * 100)
@@ -38,50 +42,78 @@ export function SwipeDeck({
   const queuedRestaurants = visibleRestaurants.slice(1, 3);
 
   useEffect(() => {
-    visibleRestaurants.slice(0, 4).forEach((restaurant) => {
-      const image = new window.Image();
-      image.decoding = "async";
-      image.src = restaurant.image;
+    visibleRestaurants.slice(0, 4).forEach((restaurant, index) => {
+      preloadRestaurantImages(restaurant, index === 0 ? 3 : 2);
     });
   }, [visibleRestaurants]);
 
+  const detailLikedBy = useMemo(() => {
+    if (!detailRestaurant) return [];
+    return (
+      state.matches.find((match) => match.restaurantId === detailRestaurant.id)?.likedBy ??
+      []
+    );
+  }, [detailRestaurant, state.matches]);
+
   return (
     <section className="flex min-h-0 flex-1 flex-col px-5 pb-3 pt-1">
-      <div className="mb-4 rounded-lg bg-white/80 p-3 shadow-sm ring-1 ring-teal-900/5">
-        <div className="mb-2 flex items-start justify-between gap-3">
-          <div>
-            <p className="max-w-[13rem] truncate text-sm font-black text-slate-700">
-              {room.name}
-            </p>
-            <p className="mt-1 text-xs font-black text-slate-500">
-              已选择 {selectedCount} / {totalRestaurants} 家
-            </p>
-          </div>
-          <div className="rounded-full bg-teal-50 px-3 py-2 text-xs font-black text-teal-700">
+      <div className="mb-2 rounded-lg bg-white/84 px-3 py-2 shadow-sm ring-1 ring-teal-900/5">
+        <div className="flex items-center justify-between gap-2 text-xs font-black">
+          <span className="rounded-full bg-slate-50 px-3 py-2 text-slate-700">
+            已选择 {selectedCount} / {totalRestaurants}
+          </span>
+          <span className="rounded-full bg-teal-50 px-3 py-2 text-teal-700">
             已有 {state.matches.length} 个共同心动
-          </div>
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowHelp((value) => !value)}
+            className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-2 text-amber-700"
+          >
+            <CircleHelp size={13} />
+            怎么玩？
+          </button>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-slate-100 shadow-inner">
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 shadow-inner">
           <motion.div
             className="h-full rounded-full bg-[linear-gradient(90deg,#14b8a6,#f59e0b)]"
             initial={false}
             animate={{ width: `${progress}%` }}
           />
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] font-black text-slate-500">
-          <div className="flex items-center justify-center gap-1 rounded-full bg-slate-50 px-2 py-2">
-            <X size={13} className="text-rose-400" />
-            左滑 不想吃
-          </div>
-          <div className="flex items-center justify-center gap-1 rounded-full bg-teal-50 px-2 py-2 text-teal-700">
-            <Heart size={13} className="fill-teal-500 text-teal-500" />
-            右滑 想吃
-          </div>
-          <div className="flex items-center justify-center gap-1 rounded-full bg-amber-50 px-2 py-2 text-amber-700">
-            <ListChecks size={13} />
-            Match 看榜
-          </div>
-        </div>
+        {showHelp ? (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-2 grid gap-1.5 text-[11px] font-black text-slate-500"
+          >
+            <div className="flex items-center gap-1.5">
+              <X size={13} className="text-rose-400" />
+              左滑：不想吃
+            </div>
+            <div className="flex items-center gap-1.5 text-teal-700">
+              <Heart size={13} className="fill-teal-500 text-teal-500" />
+              右滑：想吃
+            </div>
+            <div className="flex items-center gap-1.5 text-amber-700">
+              <ListChecks size={13} />
+              和朋友都喜欢的餐厅会进入共同心动榜
+            </div>
+          </motion.div>
+        ) : null}
+      </div>
+
+      <div className="mb-2 flex items-center justify-between gap-3 px-1">
+        <p className="min-w-0 truncate text-xs font-black text-slate-500">
+          {room.name}
+        </p>
+        <button
+          type="button"
+          onClick={onViewMatches}
+          className="shrink-0 text-xs font-black text-teal-600"
+        >
+          看榜
+        </button>
       </div>
 
       <div className="relative min-h-0 flex-1">
@@ -120,6 +152,7 @@ export function SwipeDeck({
               <RestaurantCard
                 restaurant={primaryRestaurant}
                 onDecision={onDecision}
+                onOpenDetails={setDetailRestaurant}
                 priority
               />
             </motion.div>
@@ -155,6 +188,13 @@ export function SwipeDeck({
           </motion.div>
         )}
       </div>
+
+      <RestaurantDetailSheet
+        restaurant={detailRestaurant}
+        likedBy={detailLikedBy}
+        onClose={() => setDetailRestaurant(null)}
+        onDecision={onDecision}
+      />
     </section>
   );
 }
@@ -169,9 +209,9 @@ function RestaurantStackPreview({
   return (
     <div className="relative h-full min-h-[560px]">
       <article className="absolute inset-0 overflow-hidden rounded-lg bg-white shadow-[0_18px_50px_rgba(15,118,110,0.14)] ring-1 ring-teal-900/8">
-        <div className="relative h-[64%] overflow-hidden bg-teal-50">
+        <div className="relative h-[72%] overflow-hidden bg-teal-50">
           <img
-            src={restaurant.image}
+            src={getRestaurantCover(restaurant)}
             alt={restaurant.name}
             className="h-full w-full object-cover"
             draggable={false}
@@ -186,7 +226,7 @@ function RestaurantStackPreview({
             </p>
           </div>
         </div>
-        <div className="h-[36%] p-5">
+        <div className="h-[28%] p-5">
           <div className="h-4 w-24 rounded-full bg-slate-100" />
           <div className="mt-4 flex gap-2">
             {restaurant.tags.slice(0, 3).map((tag) => (

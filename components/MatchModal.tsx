@@ -1,6 +1,7 @@
 "use client";
 
 import type { Restaurant } from "@/data/restaurants";
+import { getRestaurantCover } from "@/lib/restaurantImages";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, ListChecks, Sparkles, X } from "lucide-react";
 
@@ -46,7 +47,7 @@ export function MatchModal({
 
             <div className="relative h-56 overflow-hidden">
               <img
-                src={restaurant.image}
+                src={getRestaurantCover(restaurant)}
                 alt={restaurant.name}
                 className="h-full w-full object-cover"
               />
