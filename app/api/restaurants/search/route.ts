@@ -10,6 +10,10 @@ import {
   searchAmapRestaurants,
   searchAmapRestaurantsByText
 } from "@/lib/server/amap";
+import {
+  formatSupabaseError,
+  getSupabaseErrorDebugPayload
+} from "@/lib/supabaseErrors";
 import type { Database, Json } from "@/types/supabase";
 import type { Restaurant } from "@/data/restaurants";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -20,6 +24,12 @@ type RestaurantApiResponse = {
   source: "amap" | "local_fallback";
   restaurants: Restaurant[];
   error?: string;
+  debug?: {
+    message: unknown;
+    code: unknown;
+    details: unknown;
+    hint: unknown;
+  };
   reason?: string;
 };
 
@@ -250,13 +260,26 @@ async function searchRestaurantsWithAmap(input: SearchInput) {
   });
 }
 
+function getSafeErrorDebug(error?: unknown) {
+  if (!error) return undefined;
+  const debug = getSupabaseErrorDebugPayload(error);
+
+  return {
+    message: debug.message,
+    code: debug.code,
+    details: debug.details,
+    hint: debug.hint
+  };
+}
+
 function fallbackResponse(reason: string, error?: unknown) {
   return NextResponse.json(
     {
       ok: false,
       source: "local_fallback",
       reason,
-      error: error instanceof Error ? error.message : undefined,
+      error: error ? formatSupabaseError(error) : undefined,
+      debug: getSafeErrorDebug(error),
       restaurants: []
     } satisfies RestaurantApiResponse,
     { status: 200 }
@@ -356,6 +379,7 @@ async function handleSearch(request: Request) {
         });
       } catch (cacheError) {
         console.error("[RestaurantAPI] cache write failed", cacheError);
+        const cacheDebug = getSafeErrorDebug(cacheError);
         await Promise.all([
           recordServerEvent({
             roomId: input.roomId,
@@ -363,7 +387,8 @@ async function handleSearch(request: Request) {
             metadata: {
               reason: "RESTAURANT_CACHE_WRITE_FAILED",
               area_key: areaKey,
-              location_label: input.locationLabel
+              location_label: input.locationLabel,
+              cache_error: cacheDebug
             }
           }),
           recordServerEvent({
