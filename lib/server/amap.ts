@@ -13,6 +13,48 @@ const AMAP_TEXT_URL = "https://restapi.amap.com/v3/place/text";
 const AMAP_DETAIL_URL = "https://restapi.amap.com/v3/place/detail";
 const AMAP_FOOD_TYPE = "050000";
 
+const amapAreaCenters: Partial<
+  Record<
+    RestaurantAreaKey,
+    {
+      label: string;
+      lat: number;
+      lng: number;
+    }
+  >
+> = {
+  nearby: {
+    label: "人民广场附近",
+    lat: 31.2304,
+    lng: 121.4737
+  },
+  wujiaochang: {
+    label: "五角场附近",
+    lat: 31.3039,
+    lng: 121.5148
+  },
+  jingansi: {
+    label: "静安寺附近",
+    lat: 31.2231,
+    lng: 121.4453
+  },
+  gubei: {
+    label: "古北",
+    lat: 31.1912,
+    lng: 121.4027
+  },
+  pudong: {
+    label: "浦东新区",
+    lat: 31.2304,
+    lng: 121.5447
+  },
+  anfulu: {
+    label: "安福路",
+    lat: 31.2155,
+    lng: 121.4436
+  }
+};
+
 const fallbackImageGroups = {
   hotpot: [
     "/restaurants/hotpot-1.png",
@@ -163,6 +205,25 @@ function buildKeyword(keyword?: string, cuisinePreference?: string) {
   const base = keyword?.trim() || "餐厅";
   if (!cuisine || cuisine === "不限" || base.includes(cuisine)) return base;
   return `${cuisine} ${base}`;
+}
+
+function isAbstractNearbyLocation(locationLabel?: string) {
+  const normalized = (locationLabel ?? "").trim().toLowerCase();
+
+  return (
+    !normalized ||
+    normalized.includes("当前") ||
+    normalized.includes("附近") ||
+    normalized.includes("nearby")
+  );
+}
+
+export function getPresetAreaCenter(areaKey?: string, locationLabel?: string) {
+  const key = getRestaurantAreaKey(areaKey || locationLabel);
+
+  if (key !== DEFAULT_RESTAURANT_AREA) return amapAreaCenters[key] ?? null;
+  if (isAbstractNearbyLocation(locationLabel)) return amapAreaCenters.nearby ?? null;
+  return null;
 }
 
 function inferCuisine({

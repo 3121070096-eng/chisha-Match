@@ -5,6 +5,7 @@ import {
 } from "@/lib/restaurantCache";
 import {
   geocodeAmapLocation,
+  getPresetAreaCenter,
   hasAmapApiKey,
   searchAmapRestaurants,
   searchAmapRestaurantsByText
@@ -199,11 +200,23 @@ async function searchRestaurantsWithAmap(input: SearchInput) {
     input.areaKey || getRestaurantAreaKey(input.locationLabel).toString();
   const radiusM = input.radiusM ?? 3000;
   const keyword = input.keyword || "餐厅";
+  const presetCenter = getPresetAreaCenter(input.areaKey, input.locationLabel);
 
   if (typeof input.lat === "number" && typeof input.lng === "number") {
     return searchAmapRestaurants({
       lat: input.lat,
       lng: input.lng,
+      radiusM,
+      keyword,
+      cuisinePreference: input.cuisinePreference,
+      areaKey
+    });
+  }
+
+  if (presetCenter) {
+    return searchAmapRestaurants({
+      lat: presetCenter.lat,
+      lng: presetCenter.lng,
       radiusM,
       keyword,
       cuisinePreference: input.cuisinePreference,

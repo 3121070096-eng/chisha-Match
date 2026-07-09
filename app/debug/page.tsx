@@ -63,7 +63,7 @@ async function countEvents(eventName: string) {
 async function checkAmapApiRoute() {
   try {
     const response = await fetch(
-      "/api/restaurants/search?locationLabel=%E9%9D%99%E5%AE%89%E5%AF%BA&areaKey=jingansi&keyword=%E9%A4%90%E5%8E%85",
+      "/api/restaurants/search?locationLabel=%E5%BD%93%E5%89%8D%E4%BD%8D%E7%BD%AE%E9%99%84%E8%BF%91&areaKey=nearby&keyword=%E9%A4%90%E5%8E%85",
       { cache: "no-store" }
     );
     const payload = (await response.json()) as {
