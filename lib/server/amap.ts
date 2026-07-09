@@ -5,10 +5,12 @@ import {
   type RestaurantAreaKey
 } from "@/data/restaurants";
 import { makeAmapRestaurantId } from "@/lib/restaurantCache";
+import crypto from "node:crypto";
 
 const AMAP_GEOCODE_URL = "https://restapi.amap.com/v3/geocode/geo";
 const AMAP_AROUND_URL = "https://restapi.amap.com/v3/place/around";
 const AMAP_TEXT_URL = "https://restapi.amap.com/v3/place/text";
+const AMAP_DETAIL_URL = "https://restapi.amap.com/v3/place/detail";
 const AMAP_FOOD_TYPE = "050000";
 
 const fallbackImageGroups = {
@@ -71,6 +73,8 @@ type AmapSearchResponse = {
   pois?: AmapPoi[];
 };
 
+type AmapDetailResponse = AmapSearchResponse;
+
 type SearchBaseInput = {
   areaKey?: string;
   keyword?: string;
@@ -95,6 +99,35 @@ function getAmapApiKey() {
   const key = process.env.AMAP_API_KEY;
   if (!key) throw new Error("AMAP_API_KEY_NOT_CONFIGURED");
   return key;
+}
+
+function signAmapParams(params: Record<string, string>) {
+  const securityKey = process.env.AMAP_SECURITY_KEY;
+  if (!securityKey) return undefined;
+
+  const plainText =
+    Object.keys(params)
+      .sort()
+      .map((key) => `${key}=${params[key]}`)
+      .join("&") + securityKey;
+
+  return crypto.createHash("md5").update(plainText).digest("hex");
+}
+
+function createAmapUrl(endpoint: string, params: Record<string, string>) {
+  const allParams = {
+    ...params,
+    key: getAmapApiKey()
+  };
+  const sig = signAmapParams(allParams);
+  const url = new URL(endpoint);
+
+  Object.entries(allParams).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+
+  if (sig) url.searchParams.set("sig", sig);
+  return url;
 }
 
 function parseAmapLocation(location?: string) {
@@ -171,12 +204,21 @@ function getFallbackImages(cuisine: string, index: number) {
   ];
 }
 
-function getPoiImages(poi: AmapPoi, cuisine: string, index: number) {
-  const photos =
+function proxyAmapImageUrl(url: string) {
+  return `/api/restaurants/photo?url=${encodeURIComponent(url)}`;
+}
+
+function getRawPoiPhotoUrls(poi: AmapPoi) {
+  return (
     poi.photos
       ?.map((photo) => photo.url?.trim())
-      .filter((url): url is string => Boolean(url && /^https?:\/\//.test(url)))
-      .map((url) => url.replace(/^http:\/\//, "https://")) ?? [];
+      .filter((url): url is string => Boolean(url && /^https?:\/\//.test(url))) ?? []
+  );
+}
+
+function getPoiImages(poi: AmapPoi, cuisine: string, index: number) {
+  const photos =
+    getRawPoiPhotoUrls(poi).map((url) => proxyAmapImageUrl(url)) ?? [];
 
   if (photos.length > 0) return photos.slice(0, 3);
   return getFallbackImages(cuisine, index);
@@ -288,6 +330,57 @@ async function fetchAmapJson<T>(url: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function getAmapPoiDetail(poiId: string) {
+  const url = createAmapUrl(AMAP_DETAIL_URL, {
+    id: poiId,
+    extensions: "all"
+  });
+  const payload = await fetchAmapJson<AmapDetailResponse>(url.toString());
+
+  if (payload.status !== "1") {
+    console.error("[Amap] detail failed", payload);
+    return null;
+  }
+
+  return payload.pois?.[0] ?? null;
+}
+
+async function hydratePoiPhotosFromDetail(pois: AmapPoi[]) {
+  const detailTargets = pois
+    .slice(0, 12)
+    .filter((poi) => poi.id && getRawPoiPhotoUrls(poi).length === 0);
+
+  if (detailTargets.length === 0) return pois;
+
+  const details = await Promise.all(
+    detailTargets.map(async (poi) => {
+      try {
+        const detail = await getAmapPoiDetail(poi.id!);
+        return { id: poi.id, detail };
+      } catch (error) {
+        console.error("[Amap] detail request crashed", {
+          poiId: poi.id,
+          error
+        });
+        return { id: poi.id, detail: null };
+      }
+    })
+  );
+  const detailsById = new Map(details.map((item) => [item.id, item.detail]));
+
+  return pois.map((poi) => {
+    const detail = poi.id ? detailsById.get(poi.id) : null;
+    if (!detail) return poi;
+
+    return {
+      ...poi,
+      ...detail,
+      photos: detail.photos?.length ? detail.photos : poi.photos,
+      biz_ext: detail.biz_ext ?? poi.biz_ext
+    };
+  });
+}
+
 export async function geocodeAmapLocation(locationLabel: string): Promise<{
   lat: number;
   lng: number;
@@ -296,9 +389,9 @@ export async function geocodeAmapLocation(locationLabel: string): Promise<{
   const label = locationLabel.trim();
   if (!label) return null;
 
-  const url = new URL(AMAP_GEOCODE_URL);
-  url.searchParams.set("key", getAmapApiKey());
-  url.searchParams.set("address", label);
+  const url = createAmapUrl(AMAP_GEOCODE_URL, {
+    address: label
+  });
 
   const payload = await fetchAmapJson<AmapGeocodeResponse>(url.toString());
 
@@ -327,15 +420,15 @@ export async function searchAmapRestaurants({
   areaKey
 }: AroundSearchInput): Promise<Restaurant[]> {
   const query = buildKeyword(keyword, cuisinePreference);
-  const url = new URL(AMAP_AROUND_URL);
-  url.searchParams.set("key", getAmapApiKey());
-  url.searchParams.set("location", `${lng},${lat}`);
-  url.searchParams.set("keywords", query);
-  url.searchParams.set("types", AMAP_FOOD_TYPE);
-  url.searchParams.set("radius", String(radiusM));
-  url.searchParams.set("offset", "20");
-  url.searchParams.set("page", "1");
-  url.searchParams.set("extensions", "all");
+  const url = createAmapUrl(AMAP_AROUND_URL, {
+    location: `${lng},${lat}`,
+    keywords: query,
+    types: AMAP_FOOD_TYPE,
+    radius: String(radiusM),
+    offset: "20",
+    page: "1",
+    extensions: "all"
+  });
 
   const payload = await fetchAmapJson<AmapSearchResponse>(url.toString());
 
@@ -343,7 +436,9 @@ export async function searchAmapRestaurants({
     throw new Error(`AMAP_AROUND_FAILED:${payload.info ?? "unknown"}`);
   }
 
-  return (payload.pois ?? [])
+  const hydratedPois = await hydratePoiPhotosFromDetail(payload.pois ?? []);
+
+  return hydratedPois
     .map((poi, index) =>
       normalizePoiToRestaurant({
         poi,
@@ -366,13 +461,13 @@ export async function searchAmapRestaurantsByText({
   const query = [location, buildKeyword(keyword, cuisinePreference)]
     .filter(Boolean)
     .join(" ");
-  const url = new URL(AMAP_TEXT_URL);
-  url.searchParams.set("key", getAmapApiKey());
-  url.searchParams.set("keywords", query || "餐厅");
-  url.searchParams.set("types", AMAP_FOOD_TYPE);
-  url.searchParams.set("offset", "20");
-  url.searchParams.set("page", "1");
-  url.searchParams.set("extensions", "all");
+  const url = createAmapUrl(AMAP_TEXT_URL, {
+    keywords: query || "餐厅",
+    types: AMAP_FOOD_TYPE,
+    offset: "20",
+    page: "1",
+    extensions: "all"
+  });
 
   const payload = await fetchAmapJson<AmapSearchResponse>(url.toString());
 
@@ -380,7 +475,9 @@ export async function searchAmapRestaurantsByText({
     throw new Error(`AMAP_TEXT_FAILED:${payload.info ?? "unknown"}`);
   }
 
-  return (payload.pois ?? [])
+  const hydratedPois = await hydratePoiPhotosFromDetail(payload.pois ?? []);
+
+  return hydratedPois
     .map((poi, index) =>
       normalizePoiToRestaurant({
         poi,

@@ -66,7 +66,7 @@ export default function HomePage() {
     <AppChrome
       rightSlot={
         <div className="rounded-full bg-white/85 px-3 py-2 text-xs font-black text-teal-700 shadow-sm">
-          V3.0
+          V3.1
         </div>
       }
     >
@@ -128,8 +128,8 @@ export default function HomePage() {
                 <p className="mt-1 text-xs font-black text-slate-500">共同心动</p>
               </div>
               <div className="rounded-lg bg-white/88 px-3 py-4 text-center shadow-sm ring-1 ring-teal-900/5">
-                <p className="text-xl font-black text-teal-600">高德</p>
-                <p className="mt-1 text-xs font-black text-slate-500">V3 Spike</p>
+                <p className="text-xl font-black text-teal-600">真图</p>
+                <p className="mt-1 text-xs font-black text-slate-500">V3.1 高德</p>
               </div>
             </div>
 
