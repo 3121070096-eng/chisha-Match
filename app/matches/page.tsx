@@ -6,7 +6,11 @@ import { EmptyState } from "@/components/EmptyState";
 import { MatchList } from "@/components/MatchList";
 import { getRestaurantAreaKey } from "@/data/restaurants";
 import { trackEvent } from "@/lib/analytics";
-import { getMatchItems } from "@/lib/match";
+import { getMatchItemsFromRestaurants } from "@/lib/match";
+import {
+  getRestaurantSourceForRoom,
+  type RestaurantSourceResult
+} from "@/lib/restaurantSource";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
 import { clearRoomMemberSession, getRoomMemberSession } from "@/lib/storage";
 import {
@@ -35,6 +39,7 @@ export default function MatchesPage() {
   const router = useRouter();
   const [room, setRoom] = useState<Room | null>(null);
   const [state, setState] = useState<SwipeState | null>(null);
+  const [restaurantSource, setRestaurantSource] = useState<RestaurantSourceResult | null>(null);
   const [roomCode, setRoomCode] = useState("");
   const [joinRequired, setJoinRequired] = useState(false);
   const [missingRoom, setMissingRoom] = useState(false);
@@ -108,10 +113,37 @@ export default function MatchesPage() {
     };
   }, [refreshRoom]);
 
+  useEffect(() => {
+    if (!room) {
+      setRestaurantSource(null);
+      return;
+    }
+
+    const activeRoom = room;
+    let mounted = true;
+
+    async function loadRestaurants() {
+      try {
+        const source = await getRestaurantSourceForRoom(activeRoom);
+        if (mounted) setRestaurantSource(source);
+      } catch (restaurantError) {
+        if (!mounted) return;
+        console.error("[Matches] load restaurant source failed", restaurantError);
+        setError("餐厅候选同步失败，请稍后重试。");
+      }
+    }
+
+    void loadRestaurants();
+
+    return () => {
+      mounted = false;
+    };
+  }, [room]);
+
   const matchItems = useMemo(() => {
-    if (!state || !room) return [];
-    return getMatchItems(state.matches, room.location);
-  }, [room, state]);
+    if (!state || !restaurantSource) return [];
+    return getMatchItemsFromRestaurants(state.matches, restaurantSource.restaurants);
+  }, [restaurantSource, state]);
 
   useEffect(() => {
     if (!room || !state) return;
@@ -123,10 +155,10 @@ export default function MatchesPage() {
       metadata: {
         match_count: state.matches.length,
         room_id: room.id,
-        area_key: getRestaurantAreaKey(room.location)
+        area_key: restaurantSource?.areaKey ?? getRestaurantAreaKey(room.location)
       }
     });
-  }, [room, state]);
+  }, [restaurantSource?.areaKey, room, state]);
 
   async function chooseFinal(restaurantId: string) {
     if (!state || !room?.databaseId) return;
@@ -143,7 +175,7 @@ export default function MatchesPage() {
         metadata: {
           restaurant_id: restaurantId,
           restaurant_name: item?.restaurant.name ?? restaurantId,
-          area_key: item?.restaurant.area ?? getRestaurantAreaKey(room.location),
+          area_key: item?.restaurant.areaKey ?? item?.restaurant.area ?? getRestaurantAreaKey(room.location),
           liked_member_count: item?.match.count ?? 0
         }
       });
@@ -188,7 +220,7 @@ export default function MatchesPage() {
     );
   }
 
-  if (!room || !state) {
+  if (!room || !state || !restaurantSource) {
     return (
       <AppChrome showBack title="共同心动餐厅榜">
         <div className="grid flex-1 place-items-center px-5 text-sm font-bold text-slate-500">

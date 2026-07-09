@@ -19,7 +19,10 @@ export type AnalyticsEventName =
   | "feedback_submitted"
   | "image_load_failed"
   | "fallback_restaurants_used"
-  | "restaurant_api_failed";
+  | "restaurant_api_requested"
+  | "restaurant_api_succeeded"
+  | "restaurant_api_failed"
+  | "restaurant_cache_written";
 
 export type TrackEventInput = {
   roomId?: string | null;

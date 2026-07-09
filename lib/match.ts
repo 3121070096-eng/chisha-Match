@@ -21,10 +21,29 @@ export function findRestaurant(restaurantId: string, location?: string) {
   return findRestaurantInLocation(restaurantId, location);
 }
 
+export function findRestaurantInPool(
+  restaurantId: string,
+  restaurants: MatchItem["restaurant"][] = []
+) {
+  return restaurants.find((restaurant) => restaurant.id === restaurantId) ?? null;
+}
+
 export function getMatchItems(matches: MatchRecord[], location?: string): MatchItem[] {
   return sortMatches(matches)
     .map((match) => {
       const restaurant = findRestaurant(match.restaurantId, location);
+      return restaurant ? { match, restaurant } : null;
+    })
+    .filter((item): item is MatchItem => item !== null);
+}
+
+export function getMatchItemsFromRestaurants(
+  matches: MatchRecord[],
+  restaurants: MatchItem["restaurant"][]
+): MatchItem[] {
+  return sortMatches(matches)
+    .map((match) => {
+      const restaurant = restaurants.find((item) => item.id === match.restaurantId);
       return restaurant ? { match, restaurant } : null;
     })
     .filter((item): item is MatchItem => item !== null);

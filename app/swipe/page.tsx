@@ -7,8 +7,11 @@ import { MatchModal } from "@/components/MatchModal";
 import { SwipeDeck } from "@/components/SwipeDeck";
 import { getRestaurantAreaKey, getRestaurantAreaLabel } from "@/data/restaurants";
 import { trackEvent } from "@/lib/analytics";
-import { findRestaurant } from "@/lib/match";
-import { getLocalRestaurantsForRoom } from "@/lib/restaurantSource";
+import { findRestaurantInPool } from "@/lib/match";
+import {
+  getRestaurantSourceForRoom,
+  type RestaurantSourceResult
+} from "@/lib/restaurantSource";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
 import {
   clearRoomMemberSession,
@@ -59,6 +62,7 @@ export default function SwipePage() {
   const [room, setRoom] = useState<Room | null>(null);
   const [currentMember, setCurrentMember] = useState<RoomMember | null>(null);
   const [state, setState] = useState<SwipeState | null>(null);
+  const [restaurantSource, setRestaurantSource] = useState<RestaurantSourceResult | null>(null);
   const [roomCode, setRoomCode] = useState("");
   const [needsJoin, setNeedsJoin] = useState(false);
   const [bootstrapped, setBootstrapped] = useState(false);
@@ -175,19 +179,42 @@ export default function SwipePage() {
     return unsubscribe;
   }, [currentMember?.id, refreshRoomForMember, room?.databaseId, roomCode]);
 
+  useEffect(() => {
+    if (!room) {
+      setRestaurantSource(null);
+      return;
+    }
+
+    const activeRoom = room;
+    let mounted = true;
+
+    async function loadRestaurants() {
+      try {
+        const source = await getRestaurantSourceForRoom(activeRoom);
+        if (!mounted) return;
+        setRestaurantSource(source);
+      } catch (restaurantError) {
+        if (!mounted) return;
+        console.error("[Swipe] load restaurant source failed", restaurantError);
+        setError("餐厅候选同步失败，已尝试使用本地餐厅包。");
+      }
+    }
+
+    void loadRestaurants();
+
+    return () => {
+      mounted = false;
+    };
+  }, [room]);
+
   const deckRestaurants = useMemo(() => {
-    if (!state || !room) return [];
+    if (!state || !restaurantSource) return [];
     const seenIds = new Set(state.seenIds);
-    return getLocalRestaurantsForRoom(room)
-      .restaurants
+    return restaurantSource.restaurants
       .filter((restaurant) => !seenIds.has(restaurant.id))
       .slice(0, 4);
-  }, [room, state]);
+  }, [restaurantSource, state]);
   const currentRestaurant = deckRestaurants[0] ?? null;
-  const restaurantSource = useMemo(
-    () => (room ? getLocalRestaurantsForRoom(room) : null),
-    [room]
-  );
 
   useEffect(() => {
     if (!room || !currentMember || !restaurantSource) return;
@@ -304,7 +331,10 @@ export default function SwipePage() {
       });
 
       if (newMatch) {
-        const matchedRestaurant = findRestaurant(newMatch.restaurantId, room.location);
+        const matchedRestaurant = findRestaurantInPool(
+          newMatch.restaurantId,
+          restaurantSource?.restaurants ?? []
+        );
         void trackEvent({
           roomId: room.id,
           memberId: currentMember.id,
@@ -416,8 +446,20 @@ export default function SwipePage() {
     );
   }
 
+  if (!restaurantSource) {
+    return (
+      <AppChrome showBack title="开始选择">
+        <div className="grid flex-1 place-items-center px-5 text-sm font-bold text-slate-500">
+          正在准备这局的餐厅候选
+        </div>
+      </AppChrome>
+    );
+  }
+
   const roomRestaurants = restaurantSource?.restaurants ?? [];
-  const popupRestaurant = popup ? findRestaurant(popup.restaurantId, room.location) : null;
+  const popupRestaurant = popup
+    ? findRestaurantInPool(popup.restaurantId, roomRestaurants)
+    : null;
 
   return (
     <AppChrome

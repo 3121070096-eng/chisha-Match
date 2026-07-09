@@ -2,6 +2,7 @@
 
 import type { Restaurant } from "@/data/restaurants";
 import { trackImageLoadFailed } from "@/lib/analytics";
+import { formatRestaurantPrice, formatRestaurantRating } from "@/lib/restaurantDisplay";
 import {
   getRestaurantImages,
   preloadRestaurantImages,
@@ -213,7 +214,7 @@ export const RestaurantCard = memo(function RestaurantCard({
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-bold text-white/92">
               <span className="inline-flex items-center gap-1">
                 <Star size={16} className="fill-amber-300 text-amber-300" />
-                {restaurant.rating.toFixed(1)}
+                {formatRestaurantRating(restaurant)}
               </span>
               <span className="inline-flex items-center gap-1">
                 <MapPin size={16} />
@@ -221,7 +222,7 @@ export const RestaurantCard = memo(function RestaurantCard({
               </span>
               <span className="inline-flex items-center gap-1">
                 <Wallet size={16} />
-                ¥{restaurant.price}/人
+                {formatRestaurantPrice(restaurant)}
               </span>
             </div>
           </div>

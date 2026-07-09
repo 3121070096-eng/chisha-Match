@@ -4,6 +4,7 @@ import { RestaurantCard } from "@/components/RestaurantCard";
 import { RestaurantDetailSheet } from "@/components/RestaurantDetailSheet";
 import type { Restaurant } from "@/data/restaurants";
 import { trackImageLoadFailed } from "@/lib/analytics";
+import { formatRestaurantPrice } from "@/lib/restaurantDisplay";
 import {
   getRestaurantCover,
   preloadRestaurantImages,
@@ -222,7 +223,7 @@ function RestaurantStackPreview({
           <div className="absolute bottom-4 left-5 right-5 text-white">
             <h2 className="truncate text-2xl font-black">{restaurant.name}</h2>
             <p className="mt-2 text-sm font-black text-teal-100">
-              {restaurant.cuisine} · ¥{restaurant.price}/人
+              {restaurant.cuisine} · {formatRestaurantPrice(restaurant)}
             </p>
           </div>
         </div>

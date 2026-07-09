@@ -2,6 +2,7 @@
 
 import type { Restaurant } from "@/data/restaurants";
 import { trackImageLoadFailed } from "@/lib/analytics";
+import { formatRestaurantPrice, formatRestaurantRating } from "@/lib/restaurantDisplay";
 import {
   getRestaurantImages,
   preloadRestaurantImages,
@@ -145,11 +146,11 @@ export function RestaurantDetailSheet({
                 <div className="grid grid-cols-3 gap-2 text-sm font-black text-slate-700">
                   <div className="rounded-lg bg-amber-50 p-3 text-amber-700">
                     <Star size={17} className="fill-amber-400 text-amber-400" />
-                    <p className="mt-2">{restaurant.rating.toFixed(1)}</p>
+                    <p className="mt-2">{formatRestaurantRating(restaurant)}</p>
                   </div>
                   <div className="rounded-lg bg-teal-50 p-3 text-teal-700">
                     <Wallet size={17} />
-                    <p className="mt-2">¥{restaurant.price}/人</p>
+                    <p className="mt-2">{formatRestaurantPrice(restaurant)}</p>
                   </div>
                   <div className="rounded-lg bg-slate-50 p-3">
                     <MapPin size={17} />

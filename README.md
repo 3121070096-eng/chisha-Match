@@ -4,7 +4,7 @@
 
 ## 项目简介
 
-这个 Beta 版本已经接入 Supabase，支持真实多人房间、成员加入、滑卡记录、共同心动餐厅榜和最终餐厅选择。V2.3 进一步优化了按钮裁切、首图加载和地点餐厅池，让作品更适合发给朋友真实测试。
+这个 Beta 版本已经接入 Supabase，支持真实多人房间、成员加入、滑卡记录、共同心动餐厅榜和最终餐厅选择。V3.0 增加了高德 Web 服务 API Spike：创建房间后会尝试根据地点生成真实餐厅候选，并把同一房间的餐厅池固定下来；API 不可用时继续使用本地地区餐厅包。
 
 ## 核心功能
 
@@ -45,18 +45,30 @@ V2.4 用来帮助真实测试闭环，重点是看用户是否能顺利完成一
 - 埋点写入失败只会输出 `console.error`，不会阻塞创建房间、滑卡、Match 或最终选择。
 - 新增隐藏调试页 `/debug`，用于 Beta 阶段查看基础统计、最新反馈和最近事件，不在首页暴露。
 
-## V3.0：真实餐厅 API 预留
+## V3.0：高德 API Spike
 
-当前仍默认使用本地地区餐厅包，真实餐厅 API 暂未启用。
+V3.0 用来小规模验证真实餐厅数据是否能进入现有多人 Match 流程。它不是完整商业级推荐系统，当前优先支持高德 Web 服务 API。
 
-- 已预留 `/api/restaurants/search`。
-- 第三方餐厅 API key 必须放在服务端环境变量：
-  - `GOOGLE_PLACES_API_KEY`
-  - `AMAP_API_KEY`
-- 不要使用 `NEXT_PUBLIC_` 暴露第三方餐厅 API key。
-- API 未配置时会返回 `API_KEY_NOT_CONFIGURED`，主流程继续 fallback 到本地地区餐厅池。
-- 未来真实 API 餐厅可缓存到 `restaurant_cache`。
-- 每个房间未来可通过 `room_restaurants` 固定餐厅池，保证不同成员看到同一批餐厅。
+- `/api/restaurants/search` 会在 Next.js server route 中调用高德 API。
+- 高德 API key 只能配置为服务端环境变量 `AMAP_API_KEY`。
+- 不要使用 `NEXT_PUBLIC_AMAP_API_KEY`，也不要把真实 key 写进代码或 README。
+- 如果配置了 `AMAP_API_KEY`，创建房间后会尝试按房间地点搜索附近餐厅。
+- 如果高德 API 成功且缓存写入成功，餐厅会写入 `restaurant_cache`，并通过 `room_restaurants` 固定到当前房间。
+- 同一个房间的不同成员优先读取这批固定餐厅，避免各自请求 API 后看到不同列表。
+- 如果没有配置 key、地理编码失败、搜索失败、返回餐厅太少或缓存写入失败，主流程会 fallback 到本地地区餐厅包。
+- 高德结果缺图片时使用 `public/restaurants/` 下的本地 fallback 图片。
+- 高德结果缺评分或人均时，界面显示「暂无评分 / 人均待确认」，不会伪装成真实平台数据。
+- 模拟评论仍然是体验版食评，不是高德真实评论。
+
+服务端缓存写入建议额外配置：
+
+```bash
+SUPABASE_SERVICE_ROLE_KEY=
+```
+
+这个 key 只能放在 Vercel / 本地服务端环境变量里，不能使用 `NEXT_PUBLIC_`，也不能提交到 GitHub。没有配置时，高德搜索可以执行，但餐厅缓存无法安全写入，项目会回退到本地地区餐厅包。
+
+V3.0 后续正式化还需要继续处理：高德 API 费用、调用限额、搜索结果质量、图片稳定性、缓存策略和数据合规。
 
 新增 migration 执行顺序：
 
@@ -66,7 +78,7 @@ supabase/migrate-v30-restaurant-source.sql
 supabase/migrate-v30-restaurant-cache.sql
 ```
 
-`migrate-v24-feedback-events.sql` 和 `migrate-v30-restaurant-source.sql` 建议 Beta 线上测试前执行。`migrate-v30-restaurant-cache.sql` 是 V3.0 真实餐厅 API 缓存预留；当前主流程不强制依赖，但可以提前执行。
+`migrate-v24-feedback-events.sql`、`migrate-v30-restaurant-source.sql` 和 `migrate-v30-restaurant-cache.sql` 建议在 V3.0 线上测试前执行。`restaurant_source` 用于标记房间餐厅来源，`restaurant_cache` 和 `room_restaurants` 用于高德 API 餐厅缓存与房间固定餐厅池。
 
 ## 技术栈
 
@@ -77,6 +89,7 @@ supabase/migrate-v30-restaurant-cache.sql
 - Framer Motion
 - Lucide React
 - Supabase Database + Realtime
+- 高德 Web 服务 API（服务端 Spike）
 - localStorage
 
 ## Supabase 表结构
@@ -121,7 +134,8 @@ supabase/migrate-v30-restaurant-cache.sql
   - `metadata`
   - `created_at`
 - `restaurant_cache` / `room_restaurants`（通过 `supabase/migrate-v30-restaurant-cache.sql` 增加）
-  - V3.0 真实餐厅 API 缓存与房间餐厅池固定关系预留，当前主流程不强制使用。
+  - V3.0 高德 API 餐厅缓存与房间餐厅池固定关系。
+  - 写入应通过 Next.js server route 完成，正式上线建议使用 `SUPABASE_SERVICE_ROLE_KEY` 并收紧 RLS。
 
 当前 RLS 是 Demo 策略，允许 anon 用户基本读写，方便作品测试。正式上线前需要接入 Supabase Auth，并收紧房间访问权限。
 
@@ -140,9 +154,13 @@ supabase/migrate-v2-constraints.sql
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
+AMAP_API_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 `.env.example` 只保留变量名，不包含真实 key。`.gitignore` 已忽略 `.env.local`、`.env.*`、`.next`、`node_modules`、`.vercel` 等文件。
+
+`AMAP_API_KEY` 和 `SUPABASE_SERVICE_ROLE_KEY` 都是服务端变量，不要加 `NEXT_PUBLIC_`。
 
 ## 本地运行
 
@@ -171,13 +189,15 @@ npm run build
 4. 在 Vercel Project Settings -> Environment Variables 中配置：
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-5. 添加或修改环境变量后，必须重新部署项目，线上页面才会拿到新的 Supabase 配置。
+   - `AMAP_API_KEY`（高德 Web 服务 API key）
+   - `SUPABASE_SERVICE_ROLE_KEY`（server route 写入餐厅缓存时使用）
+5. `AMAP_API_KEY` 和 `SUPABASE_SERVICE_ROLE_KEY` 不要使用 `NEXT_PUBLIC_`。添加或修改环境变量后，必须重新部署项目，线上页面和 server route 才会拿到新的配置。
 6. 在 Supabase SQL Editor 执行 `supabase/schema.sql`。
 7. 如果之前执行过旧版 schema 且保留了旧数据，再执行 `supabase/migrate-v2-constraints.sql`。
-8. 执行 V2.4/V3 预留 migration：
+8. 执行 V2.4/V3 migration：
    - `supabase/migrate-v24-feedback-events.sql`
    - `supabase/migrate-v30-restaurant-source.sql`
-   - `supabase/migrate-v30-restaurant-cache.sql`（可选预留）
+   - `supabase/migrate-v30-restaurant-cache.sql`
 9. 部署完成后，打开线上地址测试创建房间和邀请链接。
 
 不要把 Supabase URL 或 anon key 硬编码到代码、README 或配置文件中。
@@ -188,28 +208,32 @@ npm run build
 
 1. 打开首页，点击「创建饭局」。
 2. 填写饭局信息并创建房间。
-3. 在房间页点击「复制邀请链接」。
-4. 用隐身窗口或另一台手机打开邀请链接。
-5. 第二个用户输入昵称加入房间。
-6. 两个用户进入滑卡页，并对同一家餐厅点击「想吃」。
-7. 出现 Match 弹窗后进入「共同心动餐厅榜」。
-8. 在匹配清单里点击「就吃这家」。
-9. 最终结果页展示「今晚就吃这家」和餐厅信息。
-10. 在最终结果页提交一次体验反馈。
-11. 可打开隐藏页 `/debug` 查看 feedback 和 events 是否写入成功。
+3. 如果已配置 `AMAP_API_KEY` 和 `SUPABASE_SERVICE_ROLE_KEY`，观察 console 或 `/debug` 中是否出现 `restaurant_api_requested`、`restaurant_api_succeeded`、`restaurant_cache_written`。
+4. 如果没有配置高德 key，`/api/restaurants/search` 会返回 `AMAP_API_KEY_NOT_CONFIGURED`，页面仍使用本地地区餐厅包。
+5. 在房间页点击「复制邀请链接」。
+6. 用隐身窗口或另一台手机打开邀请链接。
+7. 第二个用户输入昵称加入房间。
+8. 两个用户进入滑卡页，并对同一家餐厅点击「想吃」。
+9. 出现 Match 弹窗后进入「共同心动餐厅榜」。
+10. 在匹配清单里点击「就吃这家」。
+11. 最终结果页展示「今晚就吃这家」和餐厅信息。
+12. 在最终结果页提交一次体验反馈。
+13. 可打开隐藏页 `/debug` 查看 feedback 和 events 是否写入成功。
 
 ## 当前版本限制
 
-- 餐厅仍为本地 mock 数据，按地点拆分为多个体验版餐厅池。
-- 暂未接入真实地图或餐厅 API。
+- V3.0 是高德 API Spike，不保证真实餐厅数据完整或排序质量。
+- 未配置 `AMAP_API_KEY` 或缓存写入失败时，餐厅仍为本地 mock 数据，按地点拆分为多个体验版餐厅池。
 - 暂未做正式登录，成员身份由 localStorage 模拟。
 - Demo RLS 权限较开放，不适合直接作为正式生产权限策略。
 - 餐厅池会根据地点切换，但暂未根据真实距离、预算和菜系做算法筛选。
-- V3.0 API route 目前只做结构预留，未真正请求 Google Places 或高德地图。
+- 高德图片字段不一定稳定，当前会使用本地 fallback 图片兜底。
+- 模拟食评不是高德真实评论。
 
 ## 后续规划
 
-- 接入真实餐厅数据，例如 Google Places 或高德地图。
+- 完善高德 API 结果质量、费用控制、调用限额和缓存刷新策略。
+- 后续可评估 Google Places 或其他真实餐厅数据源。
 - 增加真实地点、预算和菜系筛选。
 - 收紧 Supabase 权限和房间访问策略。
 - 做小程序版本，降低分享和加入成本。

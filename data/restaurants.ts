@@ -32,6 +32,13 @@ export type Restaurant = {
   tags: string[];
   area: RestaurantAreaKey;
   areas: RestaurantAreaKey[];
+  areaKey?: string;
+  address?: string;
+  lat?: number;
+  lng?: number;
+  priceLevel?: string;
+  source?: "amap" | "local_pack" | "api_fallback" | string;
+  sourcePlaceId?: string;
   description?: string;
   recommendedReason?: string;
   bestFor?: string[];

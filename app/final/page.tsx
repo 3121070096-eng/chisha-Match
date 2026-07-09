@@ -5,7 +5,11 @@ import { BottomNav } from "@/components/BottomNav";
 import { EmptyState } from "@/components/EmptyState";
 import { FeedbackPanel } from "@/components/FeedbackPanel";
 import { FinalResultCard } from "@/components/FinalResultCard";
-import { findRestaurant, getMatchItems } from "@/lib/match";
+import { findRestaurantInPool, getMatchItemsFromRestaurants } from "@/lib/match";
+import {
+  getRestaurantSourceForRoom,
+  type RestaurantSourceResult
+} from "@/lib/restaurantSource";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
 import { clearRoomMemberSession, getRoomMemberSession } from "@/lib/storage";
 import {
@@ -27,6 +31,7 @@ export default function FinalPage() {
   const router = useRouter();
   const [room, setRoom] = useState<Room | null>(null);
   const [state, setState] = useState<SwipeState | null>(null);
+  const [restaurantSource, setRestaurantSource] = useState<RestaurantSourceResult | null>(null);
   const [roomCode, setRoomCode] = useState("");
   const [joinRequired, setJoinRequired] = useState(false);
   const [missingRoom, setMissingRoom] = useState(false);
@@ -100,15 +105,48 @@ export default function FinalPage() {
     };
   }, [refreshRoom]);
 
+  useEffect(() => {
+    if (!room) {
+      setRestaurantSource(null);
+      return;
+    }
+
+    const activeRoom = room;
+    let mounted = true;
+
+    async function loadRestaurants() {
+      try {
+        const source = await getRestaurantSourceForRoom(activeRoom);
+        if (mounted) setRestaurantSource(source);
+      } catch (restaurantError) {
+        if (!mounted) return;
+        console.error("[Final] load restaurant source failed", restaurantError);
+        setError("餐厅候选同步失败，请稍后重试。");
+      }
+    }
+
+    void loadRestaurants();
+
+    return () => {
+      mounted = false;
+    };
+  }, [room]);
+
   const finalItem = useMemo<MatchItem | null>(() => {
-    if (!state?.finalRestaurantId || !room) return null;
-    const matchedItem = getMatchItems(state.matches, room.location).find(
+    if (!state?.finalRestaurantId || !restaurantSource) return null;
+    const matchedItem = getMatchItemsFromRestaurants(
+      state.matches,
+      restaurantSource.restaurants
+    ).find(
       (item) => item.restaurant.id === state.finalRestaurantId
     );
 
     if (matchedItem) return matchedItem;
 
-    const restaurant = findRestaurant(state.finalRestaurantId, room.location);
+    const restaurant = findRestaurantInPool(
+      state.finalRestaurantId,
+      restaurantSource.restaurants
+    );
     if (!restaurant) return null;
 
     return {
@@ -121,7 +159,7 @@ export default function FinalPage() {
         matchedAt: new Date().toISOString()
       }
     };
-  }, [room, state]);
+  }, [restaurantSource, state]);
 
   async function resetFinal() {
     if (!room?.databaseId) return;
@@ -170,7 +208,7 @@ export default function FinalPage() {
     );
   }
 
-  if (!room || !state) {
+  if (!room || !state || !restaurantSource) {
     return (
       <AppChrome showBack title="今晚就吃这家">
         <div className="grid flex-1 place-items-center px-5 text-sm font-bold text-slate-500">

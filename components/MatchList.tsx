@@ -2,6 +2,7 @@
 
 import type { MatchItem } from "@/types";
 import { trackImageLoadFailed } from "@/lib/analytics";
+import { formatRestaurantPrice, formatRestaurantRating } from "@/lib/restaurantDisplay";
 import { getRestaurantCover, useFallbackImage } from "@/lib/restaurantImages";
 import { motion } from "framer-motion";
 import { Crown, Heart, MapPin, Star, Trophy, UsersRound, Wallet } from "lucide-react";
@@ -114,11 +115,11 @@ export function MatchList({ items, onChooseFinal, onContinueSwipe }: MatchListPr
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-2 text-amber-700">
                     <Star size={14} className="fill-amber-400 text-amber-400" />
-                    {restaurant.rating.toFixed(1)}
+                    {formatRestaurantRating(restaurant)}
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-2 py-2">
                     <Wallet size={14} />
-                    ¥{restaurant.price}
+                    {formatRestaurantPrice(restaurant, "")}
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-2 py-2">
                     <MapPin size={14} />

@@ -1,6 +1,7 @@
 -- 吃啥 Match V3.0 restaurant API cache 预留 migration
--- 当前版本不强制使用这些表；未来真实 API 查询和缓存写入应通过 server route 完成。
--- Beta Demo RLS 策略：允许 anon select 方便调试展示。正式上线前需要收紧权限。
+-- 当前版本用于高德 API Spike；真实 API 查询和缓存写入通过 server route 完成。
+-- Beta Demo RLS 策略：允许 anon select 方便调试展示。
+-- 写入缓存建议使用服务端 SUPABASE_SERVICE_ROLE_KEY。正式上线前需要继续收紧权限。
 
 create extension if not exists pgcrypto;
 
@@ -36,6 +37,8 @@ create table if not exists public.room_restaurants (
 
 create index if not exists restaurant_cache_area_key_idx on public.restaurant_cache(area_key);
 create index if not exists room_restaurants_room_id_idx on public.room_restaurants(room_id);
+create unique index if not exists room_restaurants_room_restaurant_uidx
+on public.room_restaurants(room_id, restaurant_id);
 
 alter table public.restaurant_cache enable row level security;
 alter table public.room_restaurants enable row level security;

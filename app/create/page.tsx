@@ -4,6 +4,7 @@ import { AppChrome } from "@/components/AppChrome";
 import { CreateRoomForm } from "@/components/CreateRoomForm";
 import { getRestaurantAreaKey, getRestaurantAreaLabel } from "@/data/restaurants";
 import { trackEvent } from "@/lib/analytics";
+import { prepareRestaurantPoolForRoom } from "@/lib/restaurantSource";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
 import { getCurrentUser, saveCurrentUser, saveRoomMemberSession } from "@/lib/storage";
 import { createSupabaseRoom } from "@/lib/supabaseRooms";
@@ -23,6 +24,7 @@ export default function CreateRoomPage() {
     try {
       const user = getCurrentUser() ?? saveCurrentUser("饭局队长");
       const { room, member } = await createSupabaseRoom(input, user);
+      const restaurantApiResult = await prepareRestaurantPoolForRoom(room);
       saveRoomMemberSession(room.id, member, user.id);
       void trackEvent({
         roomId: room.id,
@@ -34,7 +36,8 @@ export default function CreateRoomPage() {
           area_key: getRestaurantAreaKey(room.location),
           budget: room.budget,
           cuisine_preference: room.cuisines,
-          restaurant_source: room.restaurantSource ?? "local_pack"
+          restaurant_source: restaurantApiResult.ok ? "api" : "api_fallback",
+          restaurant_api_reason: restaurantApiResult.reason
         }
       });
       router.push(`/room?roomId=${room.id}`);
@@ -55,7 +58,7 @@ export default function CreateRoomPage() {
       ) : null}
       {creating ? (
         <div className="mx-5 mt-2 rounded-lg bg-teal-50 px-4 py-3 text-sm font-black text-teal-700">
-          正在创建 Supabase 房间
+          正在创建饭局，并准备餐厅候选
         </div>
       ) : null}
       <CreateRoomForm onCreate={handleCreate} disabled={creating} />

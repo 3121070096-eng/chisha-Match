@@ -2,6 +2,7 @@
 
 import type { MatchItem } from "@/types";
 import { trackImageLoadFailed } from "@/lib/analytics";
+import { formatRestaurantPrice, formatRestaurantRating } from "@/lib/restaurantDisplay";
 import { getRestaurantCover, useFallbackImage } from "@/lib/restaurantImages";
 import { motion } from "framer-motion";
 import { CheckCircle2, Heart, MapPin, PartyPopper, Star, Wallet } from "lucide-react";
@@ -50,11 +51,11 @@ export function FinalResultCard({ item }: FinalResultCardProps) {
           <div className="mt-5 grid grid-cols-3 gap-2">
             <div className="rounded-lg bg-white/14 p-3 backdrop-blur">
               <Star size={17} className="fill-amber-300 text-amber-300" />
-              <p className="mt-2 text-sm font-black">{restaurant.rating.toFixed(1)}</p>
+              <p className="mt-2 text-sm font-black">{formatRestaurantRating(restaurant)}</p>
             </div>
             <div className="rounded-lg bg-white/14 p-3 backdrop-blur">
               <Wallet size={17} />
-              <p className="mt-2 text-sm font-black">¥{restaurant.price}</p>
+              <p className="mt-2 text-sm font-black">{formatRestaurantPrice(restaurant, "")}</p>
             </div>
             <div className="rounded-lg bg-white/14 p-3 backdrop-blur">
               <MapPin size={17} />
