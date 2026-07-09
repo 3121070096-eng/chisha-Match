@@ -8,11 +8,27 @@ import { useEffect, useState } from "react";
 
 type DebugState = {
   counts: Record<string, number>;
+  apiCheck: {
+    ok: boolean;
+    source: string;
+    reason?: string;
+    error?: string;
+    restaurantCount: number;
+    sampleNames: string[];
+  };
   feedback: Array<{ id: string; rating: string; comment: string | null; created_at: string }>;
   events: Array<{ id: string; event_name: string; metadata: unknown; created_at: string }>;
 };
 
-async function countRows(table: "rooms" | "room_members" | "swipes" | "feedback") {
+async function countRows(
+  table:
+    | "rooms"
+    | "room_members"
+    | "swipes"
+    | "feedback"
+    | "restaurant_cache"
+    | "room_restaurants"
+) {
   const supabase = getSupabaseClient();
   const { count, error } = await supabase
     .from(table)
@@ -20,6 +36,17 @@ async function countRows(table: "rooms" | "room_members" | "swipes" | "feedback"
 
   if (error) throw error;
   return count ?? 0;
+}
+
+async function optionalCountRows(
+  table: "restaurant_cache" | "room_restaurants"
+) {
+  try {
+    return await countRows(table);
+  } catch (error) {
+    console.error(`[Debug] optional count ${table} failed`, error);
+    return -1;
+  }
 }
 
 async function countEvents(eventName: string) {
@@ -33,16 +60,76 @@ async function countEvents(eventName: string) {
   return count ?? 0;
 }
 
+async function checkAmapApiRoute() {
+  try {
+    const response = await fetch(
+      "/api/restaurants/search?locationLabel=%E9%9D%99%E5%AE%89%E5%AF%BA&areaKey=jingansi&keyword=%E9%A4%90%E5%8E%85",
+      { cache: "no-store" }
+    );
+    const payload = (await response.json()) as {
+      ok?: boolean;
+      source?: string;
+      reason?: string;
+      error?: string;
+      restaurants?: Array<{ name?: string }>;
+    };
+
+    return {
+      ok: Boolean(payload.ok),
+      source: payload.source ?? "unknown",
+      reason: payload.reason,
+      error: payload.error,
+      restaurantCount: payload.restaurants?.length ?? 0,
+      sampleNames:
+        payload.restaurants
+          ?.slice(0, 3)
+          .map((restaurant) => restaurant.name)
+          .filter((name): name is string => Boolean(name)) ?? []
+    };
+  } catch (error) {
+    console.error("[Debug] amap api route check failed", error);
+    return {
+      ok: false,
+      source: "unknown",
+      reason: "DEBUG_API_CHECK_FAILED",
+      error: error instanceof Error ? error.message : String(error),
+      restaurantCount: 0,
+      sampleNames: []
+    };
+  }
+}
+
 async function loadDebugState(): Promise<DebugState> {
   const supabase = getSupabaseClient();
-  const [rooms, members, swipes, feedbackCount, matchCreated, finalDecided] =
+  const [
+    rooms,
+    members,
+    swipes,
+    feedbackCount,
+    restaurantCache,
+    roomRestaurants,
+    matchCreated,
+    finalDecided,
+    restaurantApiRequested,
+    restaurantApiSucceeded,
+    restaurantApiFailed,
+    restaurantCacheWritten,
+    apiCheck
+  ] =
     await Promise.all([
       countRows("rooms"),
       countRows("room_members"),
       countRows("swipes"),
       countRows("feedback"),
+      optionalCountRows("restaurant_cache"),
+      optionalCountRows("room_restaurants"),
       countEvents("match_created"),
-      countEvents("final_decided")
+      countEvents("final_decided"),
+      countEvents("restaurant_api_requested"),
+      countEvents("restaurant_api_succeeded"),
+      countEvents("restaurant_api_failed"),
+      countEvents("restaurant_cache_written"),
+      checkAmapApiRoute()
     ]);
   const [{ data: feedback, error: feedbackError }, { data: events, error: eventsError }] =
     await Promise.all([
@@ -66,10 +153,17 @@ async function loadDebugState(): Promise<DebugState> {
       rooms,
       members,
       swipes,
+      restaurantCache,
+      roomRestaurants,
       matchCreated,
       finalDecided,
+      restaurantApiRequested,
+      restaurantApiSucceeded,
+      restaurantApiFailed,
+      restaurantCacheWritten,
       feedback: feedbackCount
     },
+    apiCheck,
     feedback: feedback ?? [],
     events: events ?? []
   };
@@ -120,7 +214,7 @@ export default function DebugPage() {
             Beta 测试数据
           </div>
           <p className="mt-3 text-sm font-bold leading-6 text-slate-300">
-            隐藏调试页，仅用于查看 Demo 测试反馈和事件，不暴露 Supabase key。
+            隐藏调试页，仅用于查看 Demo 测试反馈、事件和 V3.0 高德 API 状态，不暴露 Supabase key 或高德 key。
           </p>
         </div>
 
@@ -137,6 +231,36 @@ export default function DebugPage() {
 
         {state ? (
           <>
+            <section className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase text-slate-400">
+                    V3.0 Amap API
+                  </p>
+                  <h2 className="mt-1 text-lg font-black text-slate-950">
+                    {state.apiCheck.ok ? "高德接口已返回餐厅" : "当前使用本地餐厅兜底"}
+                  </h2>
+                </div>
+                <span
+                  className={`rounded-full px-3 py-1.5 text-xs font-black ${
+                    state.apiCheck.ok
+                      ? "bg-teal-50 text-teal-700"
+                      : "bg-amber-50 text-amber-700"
+                  }`}
+                >
+                  {state.apiCheck.source}
+                </span>
+              </div>
+              <div className="mt-3 rounded-lg bg-slate-50 p-3 text-xs font-bold leading-5 text-slate-600">
+                <p>返回数量：{state.apiCheck.restaurantCount}</p>
+                {state.apiCheck.reason ? <p>reason：{state.apiCheck.reason}</p> : null}
+                {state.apiCheck.error ? <p>error：{state.apiCheck.error}</p> : null}
+                {state.apiCheck.sampleNames.length > 0 ? (
+                  <p>样例：{state.apiCheck.sampleNames.join("、")}</p>
+                ) : null}
+              </div>
+            </section>
+
             <div className="grid grid-cols-2 gap-3">
               {Object.entries(state.counts).map(([key, value]) => (
                 <div key={key} className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
