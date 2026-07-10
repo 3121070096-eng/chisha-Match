@@ -222,8 +222,16 @@ export async function createSupabaseRoom(input: CreateRoomInput, user: CurrentUs
 
   const member = await createRoomMember(roomData.id, user);
 
+  const room = mapRoom(roomData);
+
   return {
-    room: mapRoom(roomData),
+    // Keep the just-selected coordinates for the initial restaurant-pool request.
+    // This also makes the creation flow resilient if the V3.2 location migration
+    // has not yet propagated to Supabase's schema cache.
+    room: {
+      ...room,
+      locationMeta: locationMeta ?? room.locationMeta
+    },
     member
   };
 }

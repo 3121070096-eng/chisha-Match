@@ -249,8 +249,14 @@ export async function getRestaurantsForRoom(roomOrId: string | RoomReference) {
   return (await getRestaurantSourceForRoom(roomOrId)).restaurants;
 }
 
-export async function prepareRestaurantPoolForRoom(room: RoomReference) {
-  const locationMeta = room.locationMeta;
+export async function prepareRestaurantPoolForRoom(
+  room: RoomReference,
+  locationOverride?: RoomLocation
+) {
+  // Use the location selected in the creation form when available. This keeps the
+  // first restaurant search accurate even while a newly added room column is still
+  // catching up in Supabase's schema cache.
+  const locationMeta = locationOverride ?? room.locationMeta;
   const areaKey = locationMeta?.areaKey ?? getRestaurantAreaKey(room.location);
 
   try {

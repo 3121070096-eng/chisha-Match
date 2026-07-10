@@ -24,7 +24,10 @@ export default function CreateRoomPage() {
     try {
       const user = getCurrentUser() ?? saveCurrentUser("饭局队长");
       const { room, member } = await createSupabaseRoom(input, user);
-      const restaurantApiResult = await prepareRestaurantPoolForRoom(room);
+      const restaurantApiResult = await prepareRestaurantPoolForRoom(
+        room,
+        input.locationMeta
+      );
       saveRoomMemberSession(room.id, member, user.id);
       void trackEvent({
         roomId: room.id,
