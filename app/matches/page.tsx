@@ -142,8 +142,12 @@ export default function MatchesPage() {
 
   const matchItems = useMemo(() => {
     if (!state || !restaurantSource) return [];
-    return getMatchItemsFromRestaurants(state.matches, restaurantSource.restaurants);
-  }, [restaurantSource, state]);
+    return getMatchItemsFromRestaurants(state.matches, restaurantSource.restaurants, {
+      locationLabel: room?.location,
+      cuisinePreference: room?.cuisines[0],
+      budget: room?.budget
+    });
+  }, [restaurantSource, room?.budget, room?.cuisines, room?.location, state]);
 
   useEffect(() => {
     if (!room || !state) return;
@@ -243,6 +247,11 @@ export default function MatchesPage() {
         </p>
         <MatchList
           items={matchItems}
+          qualityContext={{
+            locationLabel: room.location,
+            cuisinePreference: room.cuisines[0],
+            budget: room.budget
+          }}
           onChooseFinal={(restaurantId) => void chooseFinal(restaurantId)}
           onContinueSwipe={() => router.push(`/swipe?roomId=${room.id}`)}
         />

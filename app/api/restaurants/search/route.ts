@@ -1,4 +1,9 @@
-import { DEFAULT_RESTAURANT_AREA, getRestaurantAreaKey } from "@/data/restaurants";
+import {
+  DEFAULT_RESTAURANT_AREA,
+  allRestaurants,
+  getRestaurantAreaKey,
+  getRestaurantsForLocation
+} from "@/data/restaurants";
 import {
   cacheInsertFromRestaurant,
   restaurantFromCacheRow
@@ -14,6 +19,11 @@ import {
   formatSupabaseError,
   getSupabaseErrorDebugPayload
 } from "@/lib/supabaseErrors";
+import {
+  buildRestaurantPool,
+  type RestaurantPoolBuildResult,
+  type RestaurantQualityContext
+} from "@/lib/restaurantQuality";
 import type { Database, Json } from "@/types/supabase";
 import type { Restaurant } from "@/data/restaurants";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -42,6 +52,7 @@ type SearchInput = {
   lng?: number;
   radiusM?: number;
   cuisinePreference?: string;
+  budget?: number;
 };
 
 type RestaurantCacheRow = Database["public"]["Tables"]["restaurant_cache"]["Row"];
@@ -81,7 +92,8 @@ async function parseInput(request: Request): Promise<SearchInput> {
     lat: getNumberParam(url.searchParams.get("lat")),
     lng: getNumberParam(url.searchParams.get("lng")),
     radiusM: getNumberParam(url.searchParams.get("radiusM")),
-    cuisinePreference: url.searchParams.get("cuisinePreference") ?? undefined
+    cuisinePreference: url.searchParams.get("cuisinePreference") ?? undefined,
+    budget: getNumberParam(url.searchParams.get("budget"))
   };
 
   if (request.method !== "POST") return fromQuery;
@@ -168,7 +180,11 @@ async function loadCachedRestaurantsForRoom(roomId?: string) {
     .filter((restaurant): restaurant is Restaurant => restaurant !== null);
 }
 
-async function writeRestaurantCacheForRoom(roomId: string, restaurants: Restaurant[]) {
+async function writeRestaurantCacheForRoom(
+  roomId: string,
+  restaurants: Restaurant[],
+  source: "api" | "api_fallback" = "api"
+) {
   const supabase = getServerSupabaseClient({ serviceRole: true });
   if (!supabase) {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY_NOT_CONFIGURED");
@@ -204,7 +220,39 @@ async function writeRestaurantCacheForRoom(roomId: string, restaurants: Restaura
     throw roomRestaurantError;
   }
 
-  await updateRoomRestaurantSource(roomId, "api");
+  await updateRoomRestaurantSource(roomId, source);
+}
+
+function getQualityContext(input: SearchInput, areaKey: string): RestaurantQualityContext {
+  return {
+    areaKey,
+    locationLabel: input.locationLabel,
+    cuisinePreference: input.cuisinePreference,
+    budget: input.budget,
+    radiusM: input.radiusM,
+    targetCount: 20
+  };
+}
+
+function getFallbackRestaurants(input: SearchInput, areaKey: string) {
+  const locationPool = getRestaurantsForLocation(input.locationLabel || areaKey);
+  const defaultPool = getRestaurantsForLocation(DEFAULT_RESTAURANT_AREA);
+
+  // A few regional packs contain fewer than 16 entries. allRestaurants is only the
+  // final safety net; quality ranking still prefers the selected area first.
+  return [...locationPool, ...defaultPool, ...allRestaurants];
+}
+
+function buildQualityPool(
+  apiRestaurants: Restaurant[],
+  input: SearchInput,
+  areaKey: string
+) {
+  return buildRestaurantPool(
+    apiRestaurants,
+    getFallbackRestaurants(input, areaKey),
+    getQualityContext(input, areaKey)
+  );
 }
 
 function hasCuisinePreference(cuisinePreference?: string) {
@@ -365,15 +413,131 @@ function getSafeErrorDebug(error?: unknown) {
   };
 }
 
-function fallbackResponse(reason: string, error?: unknown) {
+async function respondWithCompletedPool({
+  input,
+  areaKey,
+  apiRestaurants = [],
+  reason,
+  error,
+  persist = true
+}: {
+  input: SearchInput;
+  areaKey: string;
+  apiRestaurants?: Restaurant[];
+  reason?: string;
+  error?: unknown;
+  persist?: boolean;
+}) {
+  const pool = buildQualityPool(apiRestaurants, input, areaKey);
+  const sourceMix =
+    apiRestaurants.length === 0
+      ? "local_fallback"
+      : pool.summary.fallbackCount > 0
+        ? "mixed"
+        : "amap";
+  let persisted = false;
+
+  if (input.roomId && persist) {
+    try {
+      await writeRestaurantCacheForRoom(
+        input.roomId,
+        pool.restaurants,
+        pool.summary.fallbackCount > 0 || apiRestaurants.length === 0
+          ? "api_fallback"
+          : "api"
+      );
+      persisted = true;
+      await Promise.all([
+        recordServerEvent({
+          roomId: input.roomId,
+          eventName: "restaurant_cache_written",
+          metadata: {
+            room_id: input.roomId,
+            restaurant_count: pool.summary.finalPoolCount,
+            source: sourceMix
+          }
+        }),
+        recordServerEvent({
+          roomId: input.roomId,
+          eventName: "room_restaurant_pool_created",
+          metadata: {
+            room_id: input.roomId,
+            restaurant_count: pool.summary.finalPoolCount,
+            area_key: areaKey,
+            location_label: input.locationLabel,
+            source: sourceMix
+          }
+        })
+      ]);
+    } catch (cacheError) {
+      console.error("[RestaurantAPI] completed pool cache write failed", cacheError);
+    }
+  }
+
+  const qualityMetadata = {
+    api_returned_count: apiRestaurants.length,
+    after_filter_count: pool.summary.afterFilterCount,
+    deduped_count: pool.summary.dedupedCount,
+    final_pool_count: pool.summary.finalPoolCount,
+    fallback_count: pool.summary.fallbackCount,
+    area_key: areaKey,
+    cuisine_preference: input.cuisinePreference,
+    source_mix: sourceMix,
+    persisted
+  };
+
+  await Promise.all([
+    recordServerEvent({
+      roomId: input.roomId,
+      eventName: "restaurant_pool_quality_checked",
+      metadata: qualityMetadata
+    }),
+    recordServerEvent({
+      roomId: input.roomId,
+      eventName: "restaurant_pool_completed",
+      metadata: {
+        ...qualityMetadata,
+        room_id: input.roomId ?? null,
+        final_count: pool.summary.finalPoolCount,
+        api_count: apiRestaurants.length
+      }
+    }),
+    ...(pool.summary.fallbackCount > 0
+      ? [
+          recordServerEvent({
+            roomId: input.roomId,
+            eventName: "fallback_restaurants_used",
+            metadata: {
+              requested_area_key: areaKey,
+              fallback_area_key: DEFAULT_RESTAURANT_AREA,
+              fallback_count: pool.summary.fallbackCount
+            }
+          })
+        ]
+      : []),
+    ...(apiRestaurants.length === 0
+      ? [
+          recordServerEvent({
+            roomId: input.roomId,
+            eventName: "restaurant_pool_fallback_only",
+            metadata: {
+              reason: reason ?? "AMAP_NO_RESULTS",
+              area_key: areaKey,
+              final_count: pool.summary.finalPoolCount
+            }
+          })
+        ]
+      : [])
+  ]);
+
   return NextResponse.json(
     {
-      ok: false,
-      source: "local_fallback",
+      ok: true,
+      source: apiRestaurants.length > 0 ? "amap" : "local_fallback",
       reason,
       error: error ? formatSupabaseError(error) : undefined,
       debug: getSafeErrorDebug(error),
-      restaurants: []
+      restaurants: pool.restaurants
     } satisfies RestaurantApiResponse,
     { status: 200 }
   );
@@ -414,7 +578,11 @@ async function handleSearch(request: Request) {
       updateRoomRestaurantSource(input.roomId, "api_fallback")
     ]);
 
-    return fallbackResponse("AMAP_API_KEY_NOT_CONFIGURED");
+    return respondWithCompletedPool({
+      input,
+      areaKey,
+      reason: "AMAP_API_KEY_NOT_CONFIGURED"
+    });
   }
 
   await recordServerEvent({
@@ -456,21 +624,33 @@ async function handleSearch(request: Request) {
         updateRoomRestaurantSource(input.roomId, "api_fallback")
       ]);
 
-      return fallbackResponse("AMAP_RETURNED_TOO_FEW_RESTAURANTS");
+      return respondWithCompletedPool({
+        input,
+        areaKey,
+        apiRestaurants: restaurants,
+        reason: "AMAP_RETURNED_TOO_FEW_RESTAURANTS"
+      });
     }
 
-    const limitedRestaurants = restaurants.slice(0, 20);
+    const qualityPool = buildQualityPool(restaurants, input, areaKey);
+    const limitedRestaurants = qualityPool.restaurants;
+    const sourceMix = qualityPool.summary.fallbackCount > 0 ? "mixed" : "amap";
 
     if (input.roomId) {
       try {
-        await writeRestaurantCacheForRoom(input.roomId, limitedRestaurants);
+        await writeRestaurantCacheForRoom(
+          input.roomId,
+          limitedRestaurants,
+          qualityPool.summary.fallbackCount > 0 ? "api_fallback" : "api"
+        );
         await Promise.all([
           recordServerEvent({
             roomId: input.roomId,
             eventName: "restaurant_cache_written",
             metadata: {
               room_id: input.roomId,
-              restaurant_count: limitedRestaurants.length
+              restaurant_count: limitedRestaurants.length,
+              source: sourceMix
             }
           }),
           recordServerEvent({
@@ -481,7 +661,7 @@ async function handleSearch(request: Request) {
               restaurant_count: limitedRestaurants.length,
               area_key: areaKey,
               location_label: input.locationLabel,
-              source: "amap"
+              source: sourceMix
             }
           })
         ]);
@@ -510,17 +690,69 @@ async function handleSearch(request: Request) {
           updateRoomRestaurantSource(input.roomId, "api_fallback")
         ]);
 
-        return fallbackResponse("RESTAURANT_CACHE_WRITE_FAILED", cacheError);
+        return respondWithCompletedPool({
+          input,
+          areaKey,
+          apiRestaurants: restaurants,
+          reason: "RESTAURANT_CACHE_WRITE_FAILED",
+          error: cacheError,
+          persist: false
+        });
       }
     }
+
+    await Promise.all([
+      recordServerEvent({
+        roomId: input.roomId,
+        eventName: "restaurant_pool_quality_checked",
+        metadata: {
+          api_returned_count: restaurants.length,
+          after_filter_count: qualityPool.summary.afterFilterCount,
+          deduped_count: qualityPool.summary.dedupedCount,
+          final_pool_count: qualityPool.summary.finalPoolCount,
+          fallback_count: qualityPool.summary.fallbackCount,
+          area_key: areaKey,
+          cuisine_preference: input.cuisinePreference,
+          source_mix: sourceMix
+        }
+      }),
+      recordServerEvent({
+        roomId: input.roomId,
+        eventName: "restaurant_pool_completed",
+        metadata: {
+          room_id: input.roomId ?? null,
+          final_count: qualityPool.summary.finalPoolCount,
+          api_count: restaurants.length,
+          fallback_count: qualityPool.summary.fallbackCount,
+          area_key: areaKey,
+          cuisine_preference: input.cuisinePreference,
+          source_mix: sourceMix
+        }
+      }),
+      ...(qualityPool.summary.fallbackCount > 0
+        ? [
+            recordServerEvent({
+              roomId: input.roomId,
+              eventName: "fallback_restaurants_used",
+              metadata: {
+                requested_area_key: areaKey,
+                fallback_area_key: DEFAULT_RESTAURANT_AREA,
+                fallback_count: qualityPool.summary.fallbackCount
+              }
+            })
+          ]
+        : [])
+    ]);
 
     await recordServerEvent({
       roomId: input.roomId,
       eventName: "restaurant_api_succeeded",
       metadata: {
-        returned_count: limitedRestaurants.length,
+        returned_count: restaurants.length,
+        final_count: qualityPool.summary.finalPoolCount,
+        fallback_count: qualityPool.summary.fallbackCount,
         area_key: areaKey,
-        source: "amap"
+        source: sourceMix
       }
     });
 
@@ -552,7 +784,12 @@ async function handleSearch(request: Request) {
       updateRoomRestaurantSource(input.roomId, "api_fallback")
     ]);
 
-    return fallbackResponse("AMAP_REQUEST_FAILED", error);
+    return respondWithCompletedPool({
+      input,
+      areaKey,
+      reason: "AMAP_REQUEST_FAILED",
+      error
+    });
   }
 }
 

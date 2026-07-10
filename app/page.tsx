@@ -88,7 +88,7 @@ export default function HomePage() {
                 loading="eager"
                 fetchPriority="high"
                 decoding="async"
-                onError={(event) => useFallbackImage(event.currentTarget)}
+                onError={(event) => useFallbackImage(event.currentTarget, homeRestaurants[9])}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/48 to-slate-950/10" />
               <div className="absolute right-5 top-5 flex rotate-[-6deg] items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-black text-teal-600 shadow-lg">

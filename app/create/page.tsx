@@ -42,7 +42,8 @@ export default function CreateRoomPage() {
           lng: room.locationMeta?.lng,
           budget: room.budget,
           cuisine_preference: room.cuisines,
-          restaurant_source: restaurantApiResult.ok ? "api" : "api_fallback",
+          restaurant_source:
+            restaurantApiResult.source === "amap" ? "api" : "api_fallback",
           restaurant_api_reason: restaurantApiResult.reason
         }
       });

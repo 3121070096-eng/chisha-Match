@@ -297,19 +297,41 @@ function inferCuisine({
   if (preference && preference !== "不限") return preference;
   if (/火锅/.test(text)) return "火锅";
   if (/日本|日料|寿司|刺身|烧鸟/.test(text)) return "日料";
+  if (/披萨|意面|西餐|牛排|汉堡/.test(text)) return "西餐";
   if (/咖啡|茶|甜品|面包|轻食/.test(text)) return "咖啡轻食";
   if (/烧烤|烤肉|韩/.test(text)) return "烧烤烤肉";
-  if (/川|湘|冒菜|麻辣/.test(text)) return "川湘菜";
+  if (/川|湘|冒菜|麻辣|鸡公煲/.test(text)) return "川湘菜";
+  if (/铁锅炖|东北/.test(text)) return "东北菜";
   if (/粤|茶餐厅|点心/.test(text)) return "粤菜";
-  if (/面|粉|小吃|快餐/.test(text)) return "小吃快餐";
+  if (/面|粉|小吃|快餐|砂锅/.test(text)) return "小吃快餐";
   return "餐厅";
 }
 
 function getFallbackImages(cuisine: string, index: number) {
   if (/火锅/.test(cuisine)) return fallbackImageGroups.hotpot;
   if (/日料|寿司/.test(cuisine)) return fallbackImageGroups.sushi;
-  if (/咖啡|轻食|甜品/.test(cuisine)) return fallbackImageGroups.cafe;
+  if (/咖啡|轻食/.test(cuisine)) return fallbackImageGroups.cafe;
+  if (/甜品/.test(cuisine)) return [
+    "/restaurants/dessert-1.png",
+    "/restaurants/dessert-2.png",
+    "/restaurants/dessert-3.png"
+  ];
   if (/烤/.test(cuisine)) return fallbackImageGroups.grill;
+  if (/面|粉|粥|小吃|快餐/.test(cuisine)) return [
+    "/restaurants/noodles-1.png",
+    "/restaurants/noodles-2.png",
+    "/restaurants/noodles-3.png"
+  ];
+  if (/披萨|意大利|西餐|汉堡|牛排/.test(cuisine)) return [
+    "/restaurants/pizza-1.png",
+    "/restaurants/pizza-2.png",
+    "/restaurants/pizza-3.png"
+  ];
+  if (/中餐|川菜|湘菜|粤菜|本帮|点心|饺子/.test(cuisine)) return [
+    "/restaurants/dimsum-1.png",
+    "/restaurants/dumpling-1.png",
+    "/restaurants/porridge-1.png"
+  ];
 
   const defaults = fallbackImageGroups.default;
   return [

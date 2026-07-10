@@ -151,7 +151,12 @@ export default function DemoPage() {
       .slice(0, 4);
   }, [swipeState.seenIds]);
   const matchItems = useMemo(
-    () => getMatchItems(swipeState.matches, demoRoom.location),
+    () =>
+      getMatchItems(swipeState.matches, demoRoom.location, {
+        locationLabel: demoRoom.location,
+        cuisinePreference: demoRoom.cuisines[0],
+        budget: demoRoom.budget
+      }),
     [swipeState.matches]
   );
   const finalItem = useMemo(() => {
@@ -252,6 +257,11 @@ export default function DemoPage() {
           <div className="flex min-h-0 flex-1 flex-col px-5 pb-4 pt-1">
             <MatchList
               items={matchItems}
+              qualityContext={{
+                locationLabel: demoRoom.location,
+                cuisinePreference: demoRoom.cuisines[0],
+                budget: demoRoom.budget
+              }}
               onChooseFinal={(restaurantId) => {
                 const item = matchItems.find((matchItem) => matchItem.restaurant.id === restaurantId);
                 void trackEvent({

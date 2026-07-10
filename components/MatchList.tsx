@@ -4,6 +4,10 @@ import type { MatchItem } from "@/types";
 import { trackImageLoadFailed } from "@/lib/analytics";
 import { formatRestaurantPrice, formatRestaurantRating } from "@/lib/restaurantDisplay";
 import { getRestaurantCover, useFallbackImage } from "@/lib/restaurantImages";
+import {
+  getRestaurantQualityHighlights,
+  type RestaurantQualityContext
+} from "@/lib/restaurantQuality";
 import { motion } from "framer-motion";
 import { Crown, Heart, MapPin, Star, Trophy, UsersRound, Wallet } from "lucide-react";
 
@@ -11,9 +15,15 @@ type MatchListProps = {
   items: MatchItem[];
   onChooseFinal: (restaurantId: string) => void;
   onContinueSwipe: () => void;
+  qualityContext?: RestaurantQualityContext;
 };
 
-export function MatchList({ items, onChooseFinal, onContinueSwipe }: MatchListProps) {
+export function MatchList({
+  items,
+  onChooseFinal,
+  onContinueSwipe,
+  qualityContext
+}: MatchListProps) {
   if (items.length === 0) {
     return (
       <div className="grid flex-1 place-items-center text-center">
@@ -58,6 +68,7 @@ export function MatchList({ items, onChooseFinal, onContinueSwipe }: MatchListPr
         {items.map(({ match, restaurant }, index) => {
           const rank = index + 1;
           const isTop = rank === 1;
+          const highlights = getRestaurantQualityHighlights(restaurant, qualityContext);
 
           return (
             <motion.article
@@ -83,7 +94,7 @@ export function MatchList({ items, onChooseFinal, onContinueSwipe }: MatchListPr
                   decoding="async"
                   onError={(event) => {
                     trackImageLoadFailed(restaurant, getRestaurantCover(restaurant));
-                    useFallbackImage(event.currentTarget);
+                    useFallbackImage(event.currentTarget, restaurant);
                   }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent" />
@@ -127,6 +138,14 @@ export function MatchList({ items, onChooseFinal, onContinueSwipe }: MatchListPr
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
+                  {highlights.map((highlight) => (
+                    <span
+                      key={highlight}
+                      className="rounded-full bg-teal-50 px-3 py-1.5 text-xs font-black text-teal-700"
+                    >
+                      {highlight}
+                    </span>
+                  ))}
                   {match.likedBy.map((name) => (
                     <span
                       key={name}

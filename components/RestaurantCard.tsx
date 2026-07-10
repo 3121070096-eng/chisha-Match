@@ -160,7 +160,7 @@ export const RestaurantCard = memo(function RestaurantCard({
             onError={(event) => {
               setImageFailed(true);
               trackImageLoadFailed(restaurant, imageSrc);
-              useFallbackImage(event.currentTarget);
+              useFallbackImage(event.currentTarget, restaurant);
               setImageLoaded(true);
             }}
           />

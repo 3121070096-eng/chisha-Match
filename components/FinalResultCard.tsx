@@ -32,7 +32,7 @@ export function FinalResultCard({ item }: FinalResultCardProps) {
           decoding="async"
           onError={(event) => {
             trackImageLoadFailed(restaurant, getRestaurantCover(restaurant));
-            useFallbackImage(event.currentTarget);
+            useFallbackImage(event.currentTarget, restaurant);
           }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/42 to-slate-950/5" />

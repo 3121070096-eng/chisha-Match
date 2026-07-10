@@ -1,4 +1,9 @@
 import { findRestaurantInLocation, getRestaurantsForLocation } from "@/data/restaurants";
+import {
+  getRestaurantDistanceMeters,
+  scoreRestaurant,
+  type RestaurantQualityContext
+} from "@/lib/restaurantQuality";
 import type {
   CurrentUser,
   MatchItem,
@@ -28,25 +33,52 @@ export function findRestaurantInPool(
   return restaurants.find((restaurant) => restaurant.id === restaurantId) ?? null;
 }
 
-export function getMatchItems(matches: MatchRecord[], location?: string): MatchItem[] {
-  return sortMatches(matches)
-    .map((match) => {
-      const restaurant = findRestaurant(match.restaurantId, location);
-      return restaurant ? { match, restaurant } : null;
-    })
-    .filter((item): item is MatchItem => item !== null);
+export function getMatchItems(
+  matches: MatchRecord[],
+  location?: string,
+  context: RestaurantQualityContext = {}
+): MatchItem[] {
+  return sortMatchItems(
+    sortMatches(matches)
+      .map((match) => {
+        const restaurant = findRestaurant(match.restaurantId, location);
+        return restaurant ? { match, restaurant } : null;
+      })
+      .filter((item): item is MatchItem => item !== null),
+    context
+  );
 }
 
 export function getMatchItemsFromRestaurants(
   matches: MatchRecord[],
-  restaurants: MatchItem["restaurant"][]
+  restaurants: MatchItem["restaurant"][],
+  context: RestaurantQualityContext = {}
 ): MatchItem[] {
-  return sortMatches(matches)
-    .map((match) => {
-      const restaurant = restaurants.find((item) => item.id === match.restaurantId);
-      return restaurant ? { match, restaurant } : null;
-    })
-    .filter((item): item is MatchItem => item !== null);
+  return sortMatchItems(
+    sortMatches(matches)
+      .map((match) => {
+        const restaurant = restaurants.find((item) => item.id === match.restaurantId);
+        return restaurant ? { match, restaurant } : null;
+      })
+      .filter((item): item is MatchItem => item !== null),
+    context
+  );
+}
+
+function sortMatchItems(
+  items: MatchItem[],
+  context: RestaurantQualityContext = {}
+) {
+  return [...items].sort((left, right) => {
+    if (right.match.count !== left.match.count) return right.match.count - left.match.count;
+
+    const qualityGap = scoreRestaurant(right.restaurant, context) - scoreRestaurant(left.restaurant, context);
+    if (qualityGap !== 0) return qualityGap;
+
+    const leftDistance = getRestaurantDistanceMeters(left.restaurant.distance) ?? Number.POSITIVE_INFINITY;
+    const rightDistance = getRestaurantDistanceMeters(right.restaurant.distance) ?? Number.POSITIVE_INFINITY;
+    return leftDistance - rightDistance;
+  });
 }
 
 export function buildMatchRecord(

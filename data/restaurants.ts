@@ -43,6 +43,7 @@ export type Restaurant = {
   recommendedReason?: string;
   bestFor?: string[];
   reviews?: RestaurantReview[];
+  qualityScore?: number;
 };
 
 type SeedRestaurant = {

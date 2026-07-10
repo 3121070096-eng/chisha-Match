@@ -216,7 +216,7 @@ function RestaurantStackPreview({
             decoding="async"
             onError={(event) => {
               trackImageLoadFailed(restaurant, getRestaurantCover(restaurant));
-              useFallbackImage(event.currentTarget);
+              useFallbackImage(event.currentTarget, restaurant);
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/65 via-slate-950/8 to-transparent" />

@@ -2,7 +2,12 @@
 
 import type { Restaurant } from "@/data/restaurants";
 import { trackImageLoadFailed } from "@/lib/analytics";
-import { formatRestaurantPrice, formatRestaurantRating } from "@/lib/restaurantDisplay";
+import {
+  formatRestaurantPrice,
+  formatRestaurantPriceSource,
+  formatRestaurantRating,
+  getRestaurantDataSourceLabel
+} from "@/lib/restaurantDisplay";
 import {
   getRestaurantImages,
   preloadRestaurantImages,
@@ -107,7 +112,7 @@ export function RestaurantDetailSheet({
                   decoding="async"
                   onError={(event) => {
                     trackImageLoadFailed(restaurant, activeImage);
-                    useFallbackImage(event.currentTarget);
+                    useFallbackImage(event.currentTarget, restaurant);
                   }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-slate-950/10" />
@@ -156,6 +161,15 @@ export function RestaurantDetailSheet({
                     <MapPin size={17} />
                     <p className="mt-2">{restaurant.distance}</p>
                   </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-xs font-black text-slate-500">
+                  <span className="rounded-full bg-slate-100 px-3 py-2">
+                    {getRestaurantDataSourceLabel(restaurant)}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-3 py-2">
+                    {formatRestaurantPriceSource(restaurant)}
+                  </span>
                 </div>
 
                 {likedBy.length > 0 ? (
@@ -213,7 +227,7 @@ export function RestaurantDetailSheet({
                       模拟食评
                     </h3>
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-500">
-                      Demo 文案
+                      模拟食评，仅用于体验
                     </span>
                   </div>
                   <div className="mt-2 space-y-2">

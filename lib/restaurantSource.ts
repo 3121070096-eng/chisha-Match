@@ -1,12 +1,14 @@
 import { DEFAULT_RADIUS_M, type RoomLocation } from "@/data/locations";
 import {
   DEFAULT_RESTAURANT_AREA,
+  allRestaurants,
   getRestaurantAreaKey,
   getRestaurantsForLocation,
   restaurantPacks,
   type Restaurant,
   type RestaurantAreaKey
 } from "@/data/restaurants";
+import { buildRestaurantPool } from "@/lib/restaurantQuality";
 import { restaurantFromCacheRow } from "@/lib/restaurantCache";
 import { getSupabaseClient } from "@/lib/supabase";
 import type { Room } from "@/types";
@@ -33,12 +35,19 @@ type RoomRestaurantRow = {
 
 type RoomReference = Pick<
   Room,
-  "id" | "databaseId" | "location" | "locationMeta" | "restaurantSource" | "cuisines"
+  | "id"
+  | "databaseId"
+  | "location"
+  | "locationMeta"
+  | "restaurantSource"
+  | "cuisines"
+  | "budget"
 >;
 
 type RoomReferenceRow = {
   id: string;
   location: string;
+  budget: number;
   restaurant_source: string | null;
   cuisine_preference: string[] | null;
   location_area_key?: string | null;
@@ -123,12 +132,27 @@ function mapLocationMeta(row: {
 
 export function resolveRestaurantSourceForLocation(
   location?: string,
-  source: RestaurantSource | string = "local_pack"
+  source: RestaurantSource | string = "local_pack",
+  context: { budget?: number; cuisinePreference?: string } = {}
 ): RestaurantSourceResult {
   const areaKey = getRestaurantAreaKey(location);
   const fallbackUsed =
     areaKey === DEFAULT_RESTAURANT_AREA && !isExplicitDefaultLocation(location);
-  const restaurants = getRestaurantsForLocation(location);
+  const restaurants = buildRestaurantPool(
+    [],
+    [
+      ...getRestaurantsForLocation(location),
+      ...getRestaurantsForLocation(DEFAULT_RESTAURANT_AREA),
+      ...allRestaurants
+    ],
+    {
+      areaKey,
+      locationLabel: location,
+      cuisinePreference: context.cuisinePreference,
+      budget: context.budget,
+      targetCount: 20
+    }
+  ).restaurants;
 
   return {
     restaurants,
@@ -140,15 +164,20 @@ export function resolveRestaurantSourceForLocation(
   };
 }
 
-export function getLocalRestaurantsForRoom(room?: Pick<Room, "location" | "restaurantSource"> | null) {
-  return resolveRestaurantSourceForLocation(room?.location, room?.restaurantSource);
+export function getLocalRestaurantsForRoom(
+  room?: Pick<Room, "location" | "restaurantSource" | "budget" | "cuisines"> | null
+) {
+  return resolveRestaurantSourceForLocation(room?.location, room?.restaurantSource, {
+    budget: room?.budget,
+    cuisinePreference: room?.cuisines?.[0]
+  });
 }
 
 async function loadRoomReference(roomId: string): Promise<RoomReference | null> {
   const supabase = getSupabaseClient();
   const extendedSelect =
-    "id, location, restaurant_source, cuisine_preference, location_area_key, location_city, location_lat, location_lng, location_radius_m, location_source";
-  const legacySelect = "id, location, restaurant_source, cuisine_preference";
+    "id, location, budget, restaurant_source, cuisine_preference, location_area_key, location_city, location_lat, location_lng, location_radius_m, location_source";
+  const legacySelect = "id, location, budget, restaurant_source, cuisine_preference";
   const extendedResult = await supabase
     .from("rooms")
     .select(extendedSelect)
@@ -182,7 +211,8 @@ async function loadRoomReference(roomId: string): Promise<RoomReference | null> 
     location: data.location,
     locationMeta: mapLocationMeta(data),
     restaurantSource: data.restaurant_source ?? "local_pack",
-    cuisines: data.cuisine_preference ?? []
+    cuisines: data.cuisine_preference ?? [],
+    budget: data.budget
   };
 }
 
@@ -231,13 +261,14 @@ export async function getRestaurantSourceForRoom(
 
   if (cachedRestaurants.length > 0) {
     const areaKey = getRestaurantAreaKey(room.location);
+    const isFallbackPool = room.restaurantSource === "api_fallback";
 
     return {
       restaurants: cachedRestaurants,
       areaKey,
       requestedAreaKey: areaKey,
-      restaurantSource: "api",
-      fallbackUsed: false,
+      restaurantSource: isFallbackPool ? "api_fallback" : "api",
+      fallbackUsed: isFallbackPool,
       fallbackAreaKey: DEFAULT_RESTAURANT_AREA
     };
   }
@@ -273,7 +304,8 @@ export async function prepareRestaurantPoolForRoom(
         lng: locationMeta?.lng,
         keyword: "餐厅",
         radiusM: locationMeta?.radiusM ?? DEFAULT_RADIUS_M,
-        cuisinePreference: room.cuisines?.[0]
+        cuisinePreference: room.cuisines?.[0],
+        budget: room.budget
       })
     });
     const payload = (await response.json()) as RestaurantApiSearchResult;

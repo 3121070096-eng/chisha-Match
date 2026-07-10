@@ -58,7 +58,7 @@ export function MatchModal({
                 decoding="async"
                 onError={(event) => {
                   trackImageLoadFailed(restaurant, getRestaurantCover(restaurant));
-                  useFallbackImage(event.currentTarget);
+                  useFallbackImage(event.currentTarget, restaurant);
                 }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-teal-950/75 via-teal-900/10 to-transparent" />

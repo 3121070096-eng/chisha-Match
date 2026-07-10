@@ -4,6 +4,7 @@ import { getSupabaseErrorDebugPayload } from "@/lib/supabaseErrors";
 import { getSupabaseClient } from "@/lib/supabase";
 import type { Database, Json } from "@/types/supabase";
 import type { Restaurant } from "@/data/restaurants";
+import { getRestaurantFallbackType } from "@/lib/restaurantImages";
 
 export type AnalyticsEventName =
   | "room_created"
@@ -30,7 +31,11 @@ export type AnalyticsEventName =
   | "restaurant_api_succeeded"
   | "restaurant_api_failed"
   | "restaurant_cache_written"
-  | "room_restaurant_pool_created";
+  | "room_restaurant_pool_created"
+  | "restaurant_pool_quality_checked"
+  | "restaurant_pool_completed"
+  | "restaurant_pool_fallback_only"
+  | "restaurant_image_fallback_used";
 
 export type TrackEventInput = {
   roomId?: string | null;
@@ -103,13 +108,21 @@ export async function submitFeedback({ roomId, rating, comment }: SubmitFeedback
 }
 
 export function trackImageLoadFailed(restaurant: Restaurant, imageUrl: string) {
+  const fallbackType = getRestaurantFallbackType(restaurant);
+  const metadata = {
+    restaurant_id: restaurant.id,
+    restaurant_name: restaurant.name,
+    image_url: imageUrl,
+    area_key: restaurant.area,
+    fallback_type: fallbackType
+  };
+
   void trackEvent({
     eventName: "image_load_failed",
-    metadata: {
-      restaurant_id: restaurant.id,
-      restaurant_name: restaurant.name,
-      image_url: imageUrl,
-      area_key: restaurant.area
-    }
+    metadata
+  });
+  void trackEvent({
+    eventName: "restaurant_image_fallback_used",
+    metadata
   });
 }

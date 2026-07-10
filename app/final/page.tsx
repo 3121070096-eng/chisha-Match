@@ -136,7 +136,12 @@ export default function FinalPage() {
     if (!state?.finalRestaurantId || !restaurantSource) return null;
     const matchedItem = getMatchItemsFromRestaurants(
       state.matches,
-      restaurantSource.restaurants
+      restaurantSource.restaurants,
+      {
+        locationLabel: room?.location,
+        cuisinePreference: room?.cuisines[0],
+        budget: room?.budget
+      }
     ).find(
       (item) => item.restaurant.id === state.finalRestaurantId
     );
@@ -159,7 +164,7 @@ export default function FinalPage() {
         matchedAt: new Date().toISOString()
       }
     };
-  }, [restaurantSource, state]);
+  }, [restaurantSource, room?.budget, room?.cuisines, room?.location, state]);
 
   async function resetFinal() {
     if (!room?.databaseId) return;

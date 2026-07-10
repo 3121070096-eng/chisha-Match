@@ -4,7 +4,7 @@ import {
   type Restaurant,
   type RestaurantAreaKey
 } from "@/data/restaurants";
-import { restaurantFallbackImage } from "@/lib/restaurantImages";
+import { getRestaurantFallbackImages } from "@/lib/restaurantImages";
 import type { Database, Json } from "@/types/supabase";
 
 type RestaurantCacheRow = Database["public"]["Tables"]["restaurant_cache"]["Row"];
@@ -19,9 +19,12 @@ function normalizeArea(areaKey?: string | null): RestaurantAreaKey {
   return getRestaurantAreaKey(areaKey);
 }
 
-function normalizeImages(images?: string[] | null) {
+function normalizeImages(
+  images: string[] | null | undefined,
+  restaurant: Pick<Restaurant, "name" | "cuisine" | "tags">
+) {
   const cleaned = (images ?? []).filter(Boolean);
-  return cleaned.length > 0 ? cleaned : [restaurantFallbackImage];
+  return cleaned.length > 0 ? cleaned : getRestaurantFallbackImages(restaurant);
 }
 
 function makeReviews(id: string, name: string, rating: number) {
@@ -48,9 +51,13 @@ export function restaurantFromCacheRow(row: RestaurantCacheRow): Restaurant {
   const id =
     row.source === "amap" ? makeAmapRestaurantId(sourcePlaceId) : sourcePlaceId;
   const area = normalizeArea(row.area_key);
-  const images = normalizeImages(row.images);
   const tags = row.tags?.length ? row.tags : ["餐饮", "地点搜索"];
   const cuisine = row.cuisine || tags[1] || "餐厅";
+  const images = normalizeImages(row.images, {
+    name: row.name,
+    cuisine,
+    tags
+  });
   const rating = typeof row.rating === "number" ? row.rating : 0;
   const price = row.price_level ? Number.parseInt(row.price_level, 10) : 0;
 
