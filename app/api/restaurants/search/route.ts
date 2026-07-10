@@ -46,6 +46,8 @@ type SearchInput = {
 
 type RestaurantCacheRow = Database["public"]["Tables"]["restaurant_cache"]["Row"];
 
+const MIN_REAL_RESTAURANTS = 8;
+
 function getServerSupabaseClient(options: { serviceRole?: boolean } = {}): SupabaseClient<Database> | null {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = options.serviceRole
@@ -205,6 +207,97 @@ async function writeRestaurantCacheForRoom(roomId: string, restaurants: Restaura
   await updateRoomRestaurantSource(roomId, "api");
 }
 
+function hasCuisinePreference(cuisinePreference?: string) {
+  const preference = cuisinePreference?.trim();
+  return Boolean(preference && preference !== "不限");
+}
+
+function mergeRestaurantCandidates(
+  cuisineFirst: Restaurant[],
+  nearbyFill: Restaurant[]
+) {
+  const seen = new Set<string>();
+
+  return [...cuisineFirst, ...nearbyFill].filter((restaurant) => {
+    const key = restaurant.sourcePlaceId ?? restaurant.id;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function searchNearbyCandidates({
+  lat,
+  lng,
+  radiusM,
+  keyword,
+  cuisinePreference,
+  areaKey
+}: {
+  lat: number;
+  lng: number;
+  radiusM: number;
+  keyword: string;
+  cuisinePreference?: string;
+  areaKey: string;
+}) {
+  const cuisineFirst = await searchAmapRestaurants({
+    lat,
+    lng,
+    radiusM,
+    keyword,
+    cuisinePreference,
+    areaKey
+  });
+
+  if (!hasCuisinePreference(cuisinePreference) || cuisineFirst.length >= MIN_REAL_RESTAURANTS) {
+    return cuisineFirst;
+  }
+
+  // A cuisine query can be too narrow around a precise current location. Keep its
+  // matches first, then complete the same pool with nearby food POIs.
+  const nearbyFill = await searchAmapRestaurants({
+    lat,
+    lng,
+    radiusM,
+    keyword,
+    areaKey
+  });
+
+  return mergeRestaurantCandidates(cuisineFirst, nearbyFill);
+}
+
+async function searchTextCandidates({
+  locationLabel,
+  keyword,
+  cuisinePreference,
+  areaKey
+}: {
+  locationLabel?: string;
+  keyword: string;
+  cuisinePreference?: string;
+  areaKey: string;
+}) {
+  const cuisineFirst = await searchAmapRestaurantsByText({
+    locationLabel,
+    keyword,
+    cuisinePreference,
+    areaKey
+  });
+
+  if (!hasCuisinePreference(cuisinePreference) || cuisineFirst.length >= MIN_REAL_RESTAURANTS) {
+    return cuisineFirst;
+  }
+
+  const nearbyFill = await searchAmapRestaurantsByText({
+    locationLabel,
+    keyword,
+    areaKey
+  });
+
+  return mergeRestaurantCandidates(cuisineFirst, nearbyFill);
+}
+
 async function searchRestaurantsWithAmap(input: SearchInput) {
   const areaKey =
     input.areaKey || getRestaurantAreaKey(input.locationLabel).toString();
@@ -213,7 +306,7 @@ async function searchRestaurantsWithAmap(input: SearchInput) {
   const presetCenter = getPresetAreaCenter(input.areaKey, input.locationLabel);
 
   if (typeof input.lat === "number" && typeof input.lng === "number") {
-    return searchAmapRestaurants({
+    return searchNearbyCandidates({
       lat: input.lat,
       lng: input.lng,
       radiusM,
@@ -224,7 +317,7 @@ async function searchRestaurantsWithAmap(input: SearchInput) {
   }
 
   if (presetCenter) {
-    return searchAmapRestaurants({
+    return searchNearbyCandidates({
       lat: presetCenter.lat,
       lng: presetCenter.lng,
       radiusM,
@@ -239,7 +332,7 @@ async function searchRestaurantsWithAmap(input: SearchInput) {
     const coordinates = await resolveAmapLocationByText(locationLabel);
 
     if (coordinates) {
-      const aroundRestaurants = await searchAmapRestaurants({
+      const aroundRestaurants = await searchNearbyCandidates({
         lat: coordinates.lat,
         lng: coordinates.lng,
         radiusM,
@@ -248,11 +341,11 @@ async function searchRestaurantsWithAmap(input: SearchInput) {
         areaKey
       });
 
-      if (aroundRestaurants.length >= 8) return aroundRestaurants;
+      if (aroundRestaurants.length >= MIN_REAL_RESTAURANTS) return aroundRestaurants;
     }
   }
 
-  return searchAmapRestaurantsByText({
+  return searchTextCandidates({
     locationLabel,
     keyword,
     cuisinePreference: input.cuisinePreference,
@@ -340,7 +433,7 @@ async function handleSearch(request: Request) {
   try {
     const restaurants = await searchRestaurantsWithAmap(input);
 
-    if (restaurants.length < 8) {
+    if (restaurants.length < MIN_REAL_RESTAURANTS) {
       await Promise.all([
         recordServerEvent({
           roomId: input.roomId,
