@@ -4,9 +4,9 @@ import {
   restaurantFromCacheRow
 } from "@/lib/restaurantCache";
 import {
-  geocodeAmapLocation,
   getPresetAreaCenter,
   hasAmapApiKey,
+  resolveAmapLocationByText,
   searchAmapRestaurants,
   searchAmapRestaurantsByText
 } from "@/lib/server/amap";
@@ -236,7 +236,7 @@ async function searchRestaurantsWithAmap(input: SearchInput) {
 
   const locationLabel = input.locationLabel?.trim();
   if (locationLabel) {
-    const coordinates = await geocodeAmapLocation(locationLabel);
+    const coordinates = await resolveAmapLocationByText(locationLabel);
 
     if (coordinates) {
       const aroundRestaurants = await searchAmapRestaurants({
@@ -248,7 +248,7 @@ async function searchRestaurantsWithAmap(input: SearchInput) {
         areaKey
       });
 
-      if (aroundRestaurants.length >= 6) return aroundRestaurants;
+      if (aroundRestaurants.length >= 8) return aroundRestaurants;
     }
   }
 
@@ -330,15 +330,17 @@ async function handleSearch(request: Request) {
     metadata: {
       area_key: areaKey,
       location_label: input.locationLabel,
-      radiusM: input.radiusM ?? 3000,
-      cuisinePreference: input.cuisinePreference
+      radius_m: input.radiusM ?? 3000,
+      cuisine_preference: input.cuisinePreference,
+      has_coordinates:
+        typeof input.lat === "number" && typeof input.lng === "number"
     }
   });
 
   try {
     const restaurants = await searchRestaurantsWithAmap(input);
 
-    if (restaurants.length < 6) {
+    if (restaurants.length < 8) {
       await Promise.all([
         recordServerEvent({
           roomId: input.roomId,
@@ -369,14 +371,27 @@ async function handleSearch(request: Request) {
     if (input.roomId) {
       try {
         await writeRestaurantCacheForRoom(input.roomId, limitedRestaurants);
-        await recordServerEvent({
-          roomId: input.roomId,
-          eventName: "restaurant_cache_written",
-          metadata: {
-            room_id: input.roomId,
-            restaurant_count: limitedRestaurants.length
-          }
-        });
+        await Promise.all([
+          recordServerEvent({
+            roomId: input.roomId,
+            eventName: "restaurant_cache_written",
+            metadata: {
+              room_id: input.roomId,
+              restaurant_count: limitedRestaurants.length
+            }
+          }),
+          recordServerEvent({
+            roomId: input.roomId,
+            eventName: "room_restaurant_pool_created",
+            metadata: {
+              room_id: input.roomId,
+              restaurant_count: limitedRestaurants.length,
+              area_key: areaKey,
+              location_label: input.locationLabel,
+              source: "amap"
+            }
+          })
+        ]);
       } catch (cacheError) {
         console.error("[RestaurantAPI] cache write failed", cacheError);
         const cacheDebug = getSafeErrorDebug(cacheError);

@@ -114,6 +114,10 @@ async function loadDebugState(): Promise<DebugState> {
     restaurantApiSucceeded,
     restaurantApiFailed,
     restaurantCacheWritten,
+    roomRestaurantPoolCreated,
+    currentLocationSucceeded,
+    locationSearchSucceeded,
+    presetLocationSelected,
     apiCheck
   ] =
     await Promise.all([
@@ -129,6 +133,10 @@ async function loadDebugState(): Promise<DebugState> {
       countEvents("restaurant_api_succeeded"),
       countEvents("restaurant_api_failed"),
       countEvents("restaurant_cache_written"),
+      countEvents("room_restaurant_pool_created"),
+      countEvents("current_location_succeeded"),
+      countEvents("location_search_succeeded"),
+      countEvents("preset_location_selected"),
       checkAmapApiRoute()
     ]);
   const [{ data: feedback, error: feedbackError }, { data: events, error: eventsError }] =
@@ -161,6 +169,10 @@ async function loadDebugState(): Promise<DebugState> {
       restaurantApiSucceeded,
       restaurantApiFailed,
       restaurantCacheWritten,
+      roomRestaurantPoolCreated,
+      currentLocationSucceeded,
+      locationSearchSucceeded,
+      presetLocationSelected,
       feedback: feedbackCount
     },
     apiCheck,
@@ -214,7 +226,7 @@ export default function DebugPage() {
             Beta 测试数据
           </div>
           <p className="mt-3 text-sm font-bold leading-6 text-slate-300">
-            隐藏调试页，仅用于查看 Demo 测试反馈、事件和 V3.1 高德 API / 图片状态，不暴露 Supabase key 或高德 key。
+            隐藏调试页，仅用于查看 Demo 测试反馈、事件和 V3.2 高德 API / 地点状态，不暴露 Supabase key 或高德 key。
           </p>
         </div>
 
@@ -235,7 +247,7 @@ export default function DebugPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-black uppercase text-slate-400">
-                    V3.1 Amap API
+                    V3.2 Amap API
                   </p>
                   <h2 className="mt-1 text-lg font-black text-slate-950">
                     {state.apiCheck.ok ? "高德接口已返回餐厅" : "当前使用本地餐厅兜底"}

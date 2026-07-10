@@ -1,15 +1,26 @@
 "use client";
 
 import {
-  CUSTOM_LOCATION_LABEL,
-  cuisines,
-  getRestaurantAreaKey,
-  locationOptions
-} from "@/data/restaurants";
+  DEFAULT_RADIUS_M,
+  makeCurrentRoomLocation,
+  popularLocations,
+  type RoomLocation
+} from "@/data/locations";
+import { cuisines } from "@/data/restaurants";
 import { trackEvent } from "@/lib/analytics";
 import type { CreateRoomInput } from "@/types";
 import { motion } from "framer-motion";
-import { MapPin, Plus, SlidersHorizontal, Users, Utensils, Wallet } from "lucide-react";
+import {
+  Loader2,
+  LocateFixed,
+  MapPin,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Users,
+  Utensils,
+  Wallet
+} from "lucide-react";
 import { FormEvent, useState } from "react";
 
 const defaultCuisines = ["川渝火锅", "日料", "韩式烤肉"];
@@ -19,14 +30,30 @@ type CreateRoomFormProps = {
   disabled?: boolean;
 };
 
+type LocationResolvePayload =
+  | {
+      ok: true;
+      location: RoomLocation;
+    }
+  | {
+      ok: false;
+      reason?: string;
+      message?: string;
+    };
+
 export function CreateRoomForm({ onCreate, disabled }: CreateRoomFormProps) {
   const [name, setName] = useState("周五晚饭局");
-  const [locationChoice, setLocationChoice] = useState("当前位置附近");
-  const [customLocation, setCustomLocation] = useState("");
+  const [selectedLocation, setSelectedLocation] = useState<RoomLocation>(popularLocations[0]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [resolvedQuery, setResolvedQuery] = useState("");
+  const [locationNotice, setLocationNotice] = useState("");
+  const [locating, setLocating] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [submitResolving, setSubmitResolving] = useState(false);
   const [budget, setBudget] = useState(120);
   const [participants, setParticipants] = useState(4);
   const [selectedCuisines, setSelectedCuisines] = useState<string[]>(defaultCuisines);
-  const isCustomLocation = locationChoice === CUSTOM_LOCATION_LABEL;
+  const busy = Boolean(disabled || locating || searching || submitResolving);
 
   function toggleCuisine(cuisine: string) {
     setSelectedCuisines((current) =>
@@ -36,28 +63,184 @@ export function CreateRoomForm({ onCreate, disabled }: CreateRoomFormProps) {
     );
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function trackLocationSelected(location: RoomLocation) {
+    void trackEvent({
+      eventName: "location_selected",
+      metadata: {
+        location_label: location.locationLabel,
+        area_key: location.areaKey,
+        city: location.city,
+        lat: location.lat,
+        lng: location.lng,
+        radius_m: location.radiusM,
+        source: location.source
+      }
+    });
+  }
+
+  async function resolveSearchLocation(query: string) {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setLocationNotice("请输入地点、商场、学校或地铁站。");
+      return null;
+    }
+
+    setSearching(true);
+    setLocationNotice("正在查找地点...");
+    void trackEvent({
+      eventName: "location_search_started",
+      metadata: { query: trimmed }
+    });
+
+    try {
+      const response = await fetch("/api/locations/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "search",
+          query: trimmed,
+          radiusM: DEFAULT_RADIUS_M
+        })
+      });
+      const payload = (await response.json()) as LocationResolvePayload;
+
+      if (!payload.ok) {
+        throw new Error(payload.message || "没有找到这个地点，可以换个关键词试试。");
+      }
+
+      setSelectedLocation(payload.location);
+      setResolvedQuery(trimmed);
+      setLocationNotice(`已选中：${payload.location.locationLabel}`);
+      trackLocationSelected(payload.location);
+      void trackEvent({
+        eventName: "location_search_succeeded",
+        metadata: {
+          query: trimmed,
+          location_label: payload.location.locationLabel,
+          lat: payload.location.lat,
+          lng: payload.location.lng
+        }
+      });
+      return payload.location;
+    } catch (error) {
+      console.error("[CreateRoom] search location failed", error);
+      setLocationNotice("没有找到这个地点，可以换个关键词试试。");
+      void trackEvent({
+        eventName: "location_search_failed",
+        metadata: {
+          query: trimmed,
+          error: error instanceof Error ? error.message : String(error)
+        }
+      });
+      return null;
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function handleUseCurrentLocation() {
+    if (!("geolocation" in navigator)) {
+      setLocationNotice("当前浏览器不支持定位，你也可以手动搜索地点或选择热门地点。");
+      return;
+    }
+
+    setLocating(true);
+    setLocationNotice("正在获取当前位置...");
+    void trackEvent({
+      eventName: "current_location_requested",
+      metadata: {}
+    });
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: false,
+          maximumAge: 5 * 60 * 1000,
+          timeout: 10000
+        });
+      });
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      const response = await fetch("/api/locations/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "reverse",
+          lat,
+          lng,
+          radiusM: DEFAULT_RADIUS_M
+        })
+      });
+      const payload = (await response.json()) as LocationResolvePayload;
+      const location = payload.ok
+        ? payload.location
+        : makeCurrentRoomLocation({ lat, lng, radiusM: DEFAULT_RADIUS_M });
+
+      setSelectedLocation(location);
+      setSearchQuery("");
+      setResolvedQuery("");
+      setLocationNotice(`已定位：${location.locationLabel}`);
+      trackLocationSelected(location);
+      void trackEvent({
+        eventName: "current_location_succeeded",
+        metadata: {
+          location_label: location.locationLabel,
+          lat,
+          lng
+        }
+      });
+    } catch (error) {
+      console.error("[CreateRoom] current location failed", error);
+      setLocationNotice("无法获取当前位置，你也可以手动搜索地点或选择热门地点。");
+      void trackEvent({
+        eventName: "current_location_failed",
+        metadata: {
+          error: error instanceof Error ? error.message : String(error)
+        }
+      });
+    } finally {
+      setLocating(false);
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const location = isCustomLocation
-      ? customLocation.trim() || "当前位置附近"
-      : locationChoice;
+    let finalLocation = selectedLocation;
+    const pendingSearch = searchQuery.trim();
+
+    if (pendingSearch && resolvedQuery !== pendingSearch) {
+      setSubmitResolving(true);
+      const resolvedLocation = await resolveSearchLocation(pendingSearch);
+      setSubmitResolving(false);
+
+      if (!resolvedLocation) return;
+      finalLocation = resolvedLocation;
+    }
 
     onCreate({
       name,
-      location,
+      location: finalLocation.locationLabel,
+      locationMeta: finalLocation,
       budget,
       participants,
       cuisines: selectedCuisines
     });
   }
 
-  function trackLocationSelected(locationLabel: string, isCustomLocation: boolean) {
+  function selectPopularLocation(location: RoomLocation) {
+    setSelectedLocation(location);
+    setSearchQuery("");
+    setResolvedQuery("");
+    setLocationNotice(`已选中：${location.locationLabel}`);
+    trackLocationSelected(location);
     void trackEvent({
-      eventName: "location_selected",
+      eventName: "preset_location_selected",
       metadata: {
-        location_label: locationLabel,
-        area_key: getRestaurantAreaKey(locationLabel),
-        is_custom_location: isCustomLocation
+        location_label: location.locationLabel,
+        area_key: location.areaKey,
+        city: location.city,
+        lat: location.lat,
+        lng: location.lng
       }
     });
   }
@@ -74,9 +257,9 @@ export function CreateRoomForm({ onCreate, disabled }: CreateRoomFormProps) {
             <SlidersHorizontal size={15} />
             饭局偏好
           </div>
-          <h1 className="mt-4 text-3xl font-black leading-tight">先把大家的口味圈出来</h1>
+          <h1 className="mt-4 text-3xl font-black leading-tight">先圈定集合点，再一起滑附近餐厅</h1>
           <p className="mt-3 text-sm font-semibold leading-6 text-slate-300">
-            先选集合区域，再让大家一起滑附近的体验版餐厅池。
+            可以用当前位置、搜商场学校地铁站，或者直接点热门地点。
           </p>
         </div>
 
@@ -89,57 +272,81 @@ export function CreateRoomForm({ onCreate, disabled }: CreateRoomFormProps) {
           />
         </label>
 
-        <div className="block text-sm font-black text-slate-700">
-          <div className="mb-2 flex items-center gap-2">
+        <section className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
+          <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-700">
             <MapPin size={18} className="text-teal-500" />
-            饭局地点
+            你想在哪附近吃？
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            {locationOptions.map((option) => {
-              const active = locationChoice === option.label;
 
-              return (
-                <button
-                  key={option.label}
-                  type="button"
-                  onClick={() => {
-                    setLocationChoice(option.label);
-                    trackLocationSelected(option.label, option.key === "custom");
-                  }}
-                  className={`min-h-16 rounded-lg px-3 py-3 text-left transition ${
-                    active
-                      ? "bg-teal-500 text-white shadow-md shadow-teal-500/20"
-                      : "bg-white text-slate-700 ring-1 ring-teal-900/10"
-                  }`}
-                >
-                  <span className="block text-sm font-black">{option.label}</span>
-                  <span
-                    className={`mt-1 block text-[11px] font-bold leading-4 ${
-                      active ? "text-teal-50" : "text-slate-400"
+          <button
+            type="button"
+            onClick={handleUseCurrentLocation}
+            disabled={busy}
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-teal-500 px-4 text-sm font-black text-white shadow-md shadow-teal-500/20 transition enabled:active:scale-[0.98] disabled:bg-slate-300 disabled:shadow-none"
+          >
+            {locating ? <Loader2 size={18} className="animate-spin" /> : <LocateFixed size={18} />}
+            {locating ? "正在获取当前位置" : "使用当前位置"}
+          </button>
+
+          <div className="mt-4">
+            <div className="mb-2 text-xs font-black text-slate-400">或搜索地点</div>
+            <div className="flex min-h-12 items-center gap-2 rounded-lg border border-teal-900/10 bg-slate-50 px-3 focus-within:border-teal-400">
+              <Search size={18} className="shrink-0 text-teal-500" />
+              <input
+                value={searchQuery}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setResolvedQuery("");
+                }}
+                placeholder="输入地点、商场、学校、地铁站"
+                className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => void resolveSearchLocation(searchQuery)}
+                disabled={busy || !searchQuery.trim()}
+                className="shrink-0 rounded-full bg-slate-950 px-4 py-2 text-xs font-black text-white transition enabled:active:scale-[0.98] disabled:bg-slate-300"
+              >
+                {searching ? "查找中" : "搜索"}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <div className="mb-2 text-xs font-black text-slate-400">热门地点</div>
+            <div className="flex flex-wrap gap-2">
+              {popularLocations.map((location) => {
+                const active =
+                  selectedLocation.source === "preset" &&
+                  selectedLocation.areaKey === location.areaKey;
+
+                return (
+                  <button
+                    key={location.areaKey}
+                    type="button"
+                    onClick={() => selectPopularLocation(location)}
+                    className={`rounded-full px-3 py-2 text-xs font-black transition ${
+                      active
+                        ? "bg-teal-500 text-white shadow-md shadow-teal-500/20"
+                        : "bg-slate-50 text-slate-600 ring-1 ring-teal-900/10"
                     }`}
                   >
-                    {option.hint}
-                  </span>
-                </button>
-              );
-            })}
+                    {location.locationLabel}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          {isCustomLocation ? (
-            <div className="mt-3 flex h-12 items-center gap-3 rounded-lg border border-teal-900/10 bg-white px-4 shadow-sm focus-within:border-teal-400">
-              <MapPin size={19} className="text-teal-500" />
-              <input
-                value={customLocation}
-                onChange={(event) => setCustomLocation(event.target.value)}
-                onBlur={(event) => {
-                  const value = event.target.value.trim();
-                  if (value) trackLocationSelected(value, true);
-                }}
-                placeholder="比如：新天地、徐家汇、公司楼下"
-                className="min-w-0 flex-1 bg-transparent text-base font-bold outline-none"
-              />
+
+          <div className="mt-4 rounded-lg bg-teal-50 px-3 py-2 text-xs font-black leading-5 text-teal-700">
+            当前选择：{selectedLocation.locationLabel}
+          </div>
+          {locationNotice ? (
+            <div className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs font-bold leading-5 text-slate-500">
+              {locationNotice}
             </div>
           ) : null}
-        </div>
+        </section>
 
         <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
           <div className="flex items-center justify-between">
@@ -224,11 +431,11 @@ export function CreateRoomForm({ onCreate, disabled }: CreateRoomFormProps) {
       <div className="safe-bottom mt-auto pt-7">
         <button
           type="submit"
-          disabled={disabled}
-          className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-teal-500 text-base font-black text-white shadow-lg shadow-teal-500/25 transition enabled:active:scale-[0.98] disabled:bg-slate-300 disabled:shadow-none"
+          disabled={busy}
+          className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-teal-500 px-4 text-base font-black text-white shadow-lg shadow-teal-500/25 transition enabled:active:scale-[0.98] disabled:bg-slate-300 disabled:shadow-none"
         >
-          <Plus size={21} />
-          {disabled ? "创建中" : "创建饭局"}
+          {busy ? <Loader2 size={20} className="animate-spin" /> : <Plus size={21} />}
+          {disabled ? "正在为你找附近餐厅" : "创建饭局"}
         </button>
       </div>
     </form>

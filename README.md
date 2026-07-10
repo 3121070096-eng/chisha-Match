@@ -4,12 +4,13 @@
 
 ## 项目简介
 
-这个 Beta 版本已经接入 Supabase，支持真实多人房间、成员加入、滑卡记录、共同心动餐厅榜和最终餐厅选择。V3.0 增加了高德 Web 服务 API Spike：创建房间后会尝试根据地点生成真实餐厅候选，并把同一房间的餐厅池固定下来；V3.1 继续增强高德餐厅图片获取和同源代理，API 不可用时继续使用本地地区餐厅包。
+这个 Beta 版本已经接入 Supabase，支持真实多人房间、成员加入、滑卡记录、共同心动餐厅榜和最终餐厅选择。V3.0 增加了高德 Web 服务 API Spike；V3.1 增强高德餐厅图片获取和同源代理；V3.2 增加真实定位、地点搜索和热门地点创建饭局，并继续保证同一房间固定同一批餐厅。
 
 ## 核心功能
 
-- 创建饭局房间，填写饭局名称、选择或输入地点、预算、菜系偏好和参与人数。
-- 根据饭局地点加载不同的体验版餐厅池，例如当前位置、五角场、静安寺、古北、浦东新区和安福路。
+- 创建饭局房间，填写饭局名称、选择地点、预算、菜系偏好和参与人数。
+- 地点支持三种方式：使用当前位置、搜索地点、选择热门地点。
+- 高德 API 可用时按经纬度生成真实附近餐厅池；失败时 fallback 到本地地区餐厅包。
 - 房间页展示邀请码、邀请链接、复制按钮和实时成员列表。
 - 好友打开邀请链接后输入昵称加入房间。
 - 餐厅滑卡：左滑/点击「不想吃」，右滑/点击「想吃」。
@@ -82,15 +83,30 @@ V3.1 重点修复「高德餐厅已经接入，但卡片仍显示默认图片」
 - 支持可选服务端环境变量 `AMAP_SECURITY_KEY`，如果高德 Web 服务开启数字签名，server route 会自动生成 `sig`。
 - 旧房间会继续读取之前已经固定的 `room_restaurants` 缓存；部署 V3.1 后建议新建饭局测试图片效果。
 
+## V3.2：真实定位与地点搜索
+
+V3.2 重点把地点选择从固定上海地点升级为更接近真实使用的创建流程。
+
+- 创建饭局页支持「使用当前位置」「搜索地点」「选择热门地点」三种方式。
+- 当前位置通过浏览器 `navigator.geolocation.getCurrentPosition` 获取，只在浏览器端触发；定位需要 HTTPS，Vercel 线上环境支持。
+- 用户拒绝定位不会阻塞创建饭局，仍可搜索地点或选择热门地点。
+- 服务端新增高德逆地理编码，用于把经纬度转成更友好的地点名，例如「徐汇区附近」。
+- 地点搜索会通过高德地理编码 / POI 搜索解析学校、商场、地铁站等关键词。
+- 热门地点配置位于 `data/locations.ts`，当前包含人民广场、静安寺、徐家汇、陆家嘴、五角场、大学路、南京西路和淮海中路。
+- `AMAP_API_KEY` 是服务端环境变量，不能使用 `NEXT_PUBLIC_`，也不要提交到 GitHub。
+- 高德 API 失败、返回过少或缓存写入失败时，会 fallback 到本地餐厅包。
+- 每个房间创建后会固定餐厅池，所有成员读取同一批 `room_restaurants`，避免不同用户看到不同餐厅。
+
 新增 migration 执行顺序：
 
 ```text
 supabase/migrate-v24-feedback-events.sql
 supabase/migrate-v30-restaurant-source.sql
 supabase/migrate-v30-restaurant-cache.sql
+supabase/migrate-v32-room-location.sql
 ```
 
-`migrate-v24-feedback-events.sql`、`migrate-v30-restaurant-source.sql` 和 `migrate-v30-restaurant-cache.sql` 建议在 V3.0 线上测试前执行。`restaurant_source` 用于标记房间餐厅来源，`restaurant_cache` 和 `room_restaurants` 用于高德 API 餐厅缓存与房间固定餐厅池。
+`migrate-v24-feedback-events.sql`、`migrate-v30-restaurant-source.sql`、`migrate-v30-restaurant-cache.sql` 和 `migrate-v32-room-location.sql` 建议在 V3.2 线上测试前执行。`restaurant_source` 用于标记房间餐厅来源，`restaurant_cache` 和 `room_restaurants` 用于高德 API 餐厅缓存与房间固定餐厅池，V3.2 的地点字段用于保存经纬度、区域 key、半径和地点来源。
 
 ## 技术栈
 
@@ -117,6 +133,7 @@ supabase/migrate-v30-restaurant-cache.sql
   - `status`
   - `final_restaurant_id`
   - `restaurant_source`（通过 `supabase/migrate-v30-restaurant-source.sql` 增加）
+  - `location_area_key` / `location_city` / `location_lat` / `location_lng` / `location_radius_m` / `location_source`（通过 `supabase/migrate-v32-room-location.sql` 增加）
   - `created_at`
 - `room_members`
   - `id`
@@ -212,6 +229,7 @@ npm run build
    - `supabase/migrate-v24-feedback-events.sql`
    - `supabase/migrate-v30-restaurant-source.sql`
    - `supabase/migrate-v30-restaurant-cache.sql`
+   - `supabase/migrate-v32-room-location.sql`
 9. 部署完成后，打开线上地址测试创建房间和邀请链接。
 
 不要把 Supabase URL 或 anon key 硬编码到代码、README 或配置文件中。
@@ -221,7 +239,7 @@ npm run build
 ## 测试流程
 
 1. 打开首页，点击「创建饭局」。
-2. 填写饭局信息并创建房间。
+2. 填写饭局信息，使用当前位置、搜索地点或选择热门地点创建房间。
 3. 如果已配置 `AMAP_API_KEY` 和 `SUPABASE_SERVICE_ROLE_KEY`，观察 console 或 `/debug` 中是否出现 `restaurant_api_requested`、`restaurant_api_succeeded`、`restaurant_cache_written`。
 4. 如果没有配置高德 key，`/api/restaurants/search` 会返回 `AMAP_API_KEY_NOT_CONFIGURED`，页面仍使用本地地区餐厅包。
 5. 图片修复部署后建议新建饭局测试，因为旧房间会继续读取之前已经固定的 `room_restaurants` 缓存。
@@ -241,7 +259,7 @@ npm run build
 - 未配置 `AMAP_API_KEY` 或缓存写入失败时，餐厅仍为本地 mock 数据，按地点拆分为多个体验版餐厅池。
 - 暂未做正式登录，成员身份由 localStorage 模拟。
 - Demo RLS 权限较开放，不适合直接作为正式生产权限策略。
-- 餐厅池会根据地点切换，但暂未根据真实距离、预算和菜系做算法筛选。
+- 地点解析和周边搜索已经接入高德 Web 服务，但暂未接入复杂地图 UI 或正式推荐算法。
 - 高德图片字段不一定稳定，当前会使用本地 fallback 图片兜底。
 - 模拟食评不是高德真实评论。
 

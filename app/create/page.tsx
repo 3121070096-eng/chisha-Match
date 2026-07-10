@@ -2,7 +2,7 @@
 
 import { AppChrome } from "@/components/AppChrome";
 import { CreateRoomForm } from "@/components/CreateRoomForm";
-import { getRestaurantAreaKey, getRestaurantAreaLabel } from "@/data/restaurants";
+import { getRestaurantAreaKey } from "@/data/restaurants";
 import { trackEvent } from "@/lib/analytics";
 import { prepareRestaurantPoolForRoom } from "@/lib/restaurantSource";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
@@ -32,8 +32,11 @@ export default function CreateRoomPage() {
         eventName: "room_created",
         metadata: {
           title: room.name,
-          location_label: getRestaurantAreaLabel(room.location),
-          area_key: getRestaurantAreaKey(room.location),
+          location_label: room.locationMeta?.locationLabel ?? room.location,
+          area_key: room.locationMeta?.areaKey ?? getRestaurantAreaKey(room.location),
+          location_source: room.locationMeta?.source,
+          lat: room.locationMeta?.lat,
+          lng: room.locationMeta?.lng,
           budget: room.budget,
           cuisine_preference: room.cuisines,
           restaurant_source: restaurantApiResult.ok ? "api" : "api_fallback",
@@ -58,7 +61,7 @@ export default function CreateRoomPage() {
       ) : null}
       {creating ? (
         <div className="mx-5 mt-2 rounded-lg bg-teal-50 px-4 py-3 text-sm font-black text-teal-700">
-          正在创建饭局，并准备餐厅候选
+          正在为你找附近餐厅...
         </div>
       ) : null}
       <CreateRoomForm onCreate={handleCreate} disabled={creating} />

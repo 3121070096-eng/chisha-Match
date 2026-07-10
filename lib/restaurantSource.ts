@@ -1,3 +1,4 @@
+import { DEFAULT_RADIUS_M, type RoomLocation } from "@/data/locations";
 import {
   DEFAULT_RESTAURANT_AREA,
   getRestaurantAreaKey,
@@ -32,8 +33,21 @@ type RoomRestaurantRow = {
 
 type RoomReference = Pick<
   Room,
-  "id" | "databaseId" | "location" | "restaurantSource" | "cuisines"
+  "id" | "databaseId" | "location" | "locationMeta" | "restaurantSource" | "cuisines"
 >;
+
+type RoomReferenceRow = {
+  id: string;
+  location: string;
+  restaurant_source: string | null;
+  cuisine_preference: string[] | null;
+  location_area_key?: string | null;
+  location_city?: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_radius_m?: number | null;
+  location_source?: string | null;
+};
 
 export type RestaurantApiSearchResult = {
   ok: boolean;
@@ -51,6 +65,60 @@ function isExplicitDefaultLocation(location?: string) {
     normalized.includes("附近") ||
     normalized.includes("nearby")
   );
+}
+
+function normalizeLocationSource(source?: string | null): RoomLocation["source"] {
+  if (source === "current_location" || source === "search" || source === "preset") {
+    return source;
+  }
+
+  return "preset";
+}
+
+function isLocationSchemaMissing(error: unknown) {
+  if (!error) return false;
+  const candidate = error as {
+    message?: string;
+    details?: string;
+    hint?: string;
+    code?: string;
+  };
+  const message = [
+    candidate.message,
+    candidate.details,
+    candidate.hint,
+    candidate.code,
+    String(error)
+  ].join(" ");
+  return (
+    message.includes("location_area_key") ||
+    message.includes("location_city") ||
+    message.includes("location_lat") ||
+    message.includes("location_lng") ||
+    message.includes("location_radius_m") ||
+    message.includes("location_source") ||
+    message.includes("schema cache")
+  );
+}
+
+function mapLocationMeta(row: {
+  location: string;
+  location_area_key?: string | null;
+  location_city?: string | null;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  location_radius_m?: number | null;
+  location_source?: string | null;
+}): RoomLocation {
+  return {
+    locationLabel: row.location,
+    areaKey: row.location_area_key ?? undefined,
+    city: row.location_city ?? undefined,
+    lat: row.location_lat ?? undefined,
+    lng: row.location_lng ?? undefined,
+    radiusM: row.location_radius_m ?? DEFAULT_RADIUS_M,
+    source: normalizeLocationSource(row.location_source)
+  };
 }
 
 export function resolveRestaurantSourceForLocation(
@@ -78,11 +146,28 @@ export function getLocalRestaurantsForRoom(room?: Pick<Room, "location" | "resta
 
 async function loadRoomReference(roomId: string): Promise<RoomReference | null> {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
+  const extendedSelect =
+    "id, location, restaurant_source, cuisine_preference, location_area_key, location_city, location_lat, location_lng, location_radius_m, location_source";
+  const legacySelect = "id, location, restaurant_source, cuisine_preference";
+  const extendedResult = await supabase
     .from("rooms")
-    .select("id, location, restaurant_source, cuisine_preference")
+    .select(extendedSelect)
     .eq("id", roomId)
     .maybeSingle();
+  let data = extendedResult.data as RoomReferenceRow | null;
+  let error = extendedResult.error;
+
+  if (error && isLocationSchemaMissing(error)) {
+    console.warn("[RestaurantSource] location columns missing, retrying legacy room select", error);
+    const legacyResult = await supabase
+      .from("rooms")
+      .select(legacySelect)
+      .eq("id", roomId)
+      .maybeSingle();
+
+    data = legacyResult.data as RoomReferenceRow | null;
+    error = legacyResult.error;
+  }
 
   if (error) {
     console.error("[RestaurantSource] load room reference failed", error);
@@ -95,6 +180,7 @@ async function loadRoomReference(roomId: string): Promise<RoomReference | null> 
     id: data.id,
     databaseId: data.id,
     location: data.location,
+    locationMeta: mapLocationMeta(data),
     restaurantSource: data.restaurant_source ?? "local_pack",
     cuisines: data.cuisine_preference ?? []
   };
@@ -164,6 +250,9 @@ export async function getRestaurantsForRoom(roomOrId: string | RoomReference) {
 }
 
 export async function prepareRestaurantPoolForRoom(room: RoomReference) {
+  const locationMeta = room.locationMeta;
+  const areaKey = locationMeta?.areaKey ?? getRestaurantAreaKey(room.location);
+
   try {
     const response = await fetch("/api/restaurants/search", {
       method: "POST",
@@ -172,10 +261,12 @@ export async function prepareRestaurantPoolForRoom(room: RoomReference) {
       },
       body: JSON.stringify({
         roomId: room.databaseId ?? room.id,
-        areaKey: getRestaurantAreaKey(room.location),
-        locationLabel: room.location,
+        areaKey,
+        locationLabel: locationMeta?.locationLabel ?? room.location,
+        lat: locationMeta?.lat,
+        lng: locationMeta?.lng,
         keyword: "餐厅",
-        radiusM: 3000,
+        radiusM: locationMeta?.radiusM ?? DEFAULT_RADIUS_M,
         cuisinePreference: room.cuisines?.[0]
       })
     });

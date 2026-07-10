@@ -1,5 +1,6 @@
 "use client";
 
+import { DEFAULT_RADIUS_M, type RoomLocation } from "@/data/locations";
 import { getRestaurantsForLocation } from "@/data/restaurants";
 import { calculateMatchesFromSwipes, sortMatches } from "@/lib/match";
 import { makeRoomId } from "@/lib/mock";
@@ -25,6 +26,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 type RoomRow = Database["public"]["Tables"]["rooms"]["Row"];
 type RoomMemberRow = Database["public"]["Tables"]["room_members"]["Row"];
 type SwipeRow = Database["public"]["Tables"]["swipes"]["Row"];
+type RoomInsert = Database["public"]["Tables"]["rooms"]["Insert"];
 
 function throwSupabaseError(context: string, error: unknown): never {
   const message = formatSupabaseError(error);
@@ -42,6 +44,39 @@ function makeRoomMemberId(roomId: string, clientId: string) {
   return `${roomId}_${clientId}`.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
+function normalizeLocationSource(source?: string | null): RoomLocation["source"] {
+  if (source === "current_location" || source === "search" || source === "preset") {
+    return source;
+  }
+
+  return "preset";
+}
+
+function isLocationSchemaMissing(error: unknown) {
+  const message = formatSupabaseError(error);
+  return (
+    message.includes("location_area_key") ||
+    message.includes("location_city") ||
+    message.includes("location_lat") ||
+    message.includes("location_lng") ||
+    message.includes("location_radius_m") ||
+    message.includes("location_source") ||
+    message.includes("schema cache")
+  );
+}
+
+function mapRoomLocation(row: RoomRow): RoomLocation {
+  return {
+    locationLabel: row.location,
+    areaKey: row.location_area_key ?? undefined,
+    city: row.location_city ?? undefined,
+    lat: row.location_lat ?? undefined,
+    lng: row.location_lng ?? undefined,
+    radiusM: row.location_radius_m ?? DEFAULT_RADIUS_M,
+    source: normalizeLocationSource(row.location_source)
+  };
+}
+
 function mapRoom(row: RoomRow): Room {
   return {
     id: row.id,
@@ -49,6 +84,7 @@ function mapRoom(row: RoomRow): Room {
     code: row.id,
     name: row.title,
     location: row.location,
+    locationMeta: mapRoomLocation(row),
     budget: row.budget,
     cuisines: row.cuisine_preference,
     participants: 0,
@@ -141,21 +177,48 @@ async function createRoomMember(roomDatabaseId: string, user: CurrentUser) {
 export async function createSupabaseRoom(input: CreateRoomInput, user: CurrentUser) {
   const supabase = getSupabaseClient();
   const id = makeRoomId();
-  const { data: roomData, error: roomError } = await supabase
+  const baseRoomInsert: RoomInsert = {
+    id,
+    title: input.name.trim() || "今晚吃啥局",
+    location: input.location.trim() || "附近",
+    budget: input.budget,
+    cuisine_preference: input.cuisines,
+    status: "open",
+    restaurant_source: "local_pack"
+  };
+  const locationMeta = input.locationMeta;
+  const roomInsert: RoomInsert = {
+    ...baseRoomInsert,
+    location_area_key: locationMeta?.areaKey ?? null,
+    location_city: locationMeta?.city ?? null,
+    location_lat: locationMeta?.lat ?? null,
+    location_lng: locationMeta?.lng ?? null,
+    location_radius_m: locationMeta?.radiusM ?? DEFAULT_RADIUS_M,
+    location_source: locationMeta?.source ?? null
+  };
+  let { data: roomData, error: roomError } = await supabase
     .from("rooms")
-    .insert({
-      id,
-      title: input.name.trim() || "今晚吃啥局",
-      location: input.location.trim() || "附近",
-      budget: input.budget,
-      cuisine_preference: input.cuisines,
-      status: "open",
-      restaurant_source: "local_pack"
-    })
+    .insert(roomInsert)
     .select("*")
     .single();
 
+  if (roomError && isLocationSchemaMissing(roomError)) {
+    console.warn(
+      "[Supabase] room location columns missing, retrying legacy room insert",
+      getSupabaseErrorDebugPayload(roomError)
+    );
+    const legacyResult = await supabase
+      .from("rooms")
+      .insert(baseRoomInsert)
+      .select("*")
+      .single();
+
+    roomData = legacyResult.data;
+    roomError = legacyResult.error;
+  }
+
   if (roomError) throwSupabaseError("create room failed", roomError);
+  if (!roomData) throw new Error("create room failed: no room data returned");
 
   const member = await createRoomMember(roomData.id, user);
 

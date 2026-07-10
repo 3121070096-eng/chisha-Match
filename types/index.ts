@@ -1,4 +1,5 @@
 import type { Restaurant } from "@/data/restaurants";
+import type { RoomLocation } from "@/data/locations";
 
 export type SwipeDecision = "like" | "skip";
 
@@ -20,6 +21,7 @@ export type Room = {
   code?: string;
   name: string;
   location: string;
+  locationMeta?: RoomLocation;
   budget: number;
   cuisines: string[];
   participants: number;
@@ -52,6 +54,7 @@ export type SwipeState = {
 export type CreateRoomInput = {
   name: string;
   location: string;
+  locationMeta?: RoomLocation;
   budget: number;
   cuisines: string[];
   participants: number;

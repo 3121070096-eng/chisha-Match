@@ -19,6 +19,12 @@ export type Database = {
           status: "open" | "choosing" | "matched" | "decided" | "closed";
           final_restaurant_id: string | null;
           restaurant_source: string;
+          location_area_key: string | null;
+          location_city: string | null;
+          location_lat: number | null;
+          location_lng: number | null;
+          location_radius_m: number | null;
+          location_source: string | null;
           created_at: string;
         };
         Insert: {
@@ -30,6 +36,12 @@ export type Database = {
           status?: "open" | "choosing" | "matched" | "decided" | "closed";
           final_restaurant_id?: string | null;
           restaurant_source?: string;
+          location_area_key?: string | null;
+          location_city?: string | null;
+          location_lat?: number | null;
+          location_lng?: number | null;
+          location_radius_m?: number | null;
+          location_source?: string | null;
           created_at?: string;
         };
         Update: {
@@ -41,6 +53,12 @@ export type Database = {
           status?: "open" | "choosing" | "matched" | "decided" | "closed";
           final_restaurant_id?: string | null;
           restaurant_source?: string;
+          location_area_key?: string | null;
+          location_city?: string | null;
+          location_lat?: number | null;
+          location_lng?: number | null;
+          location_radius_m?: number | null;
+          location_source?: string | null;
           created_at?: string;
         };
         Relationships: [];

@@ -8,6 +8,13 @@ import type { Restaurant } from "@/data/restaurants";
 export type AnalyticsEventName =
   | "room_created"
   | "location_selected"
+  | "current_location_requested"
+  | "current_location_succeeded"
+  | "current_location_failed"
+  | "location_search_started"
+  | "location_search_succeeded"
+  | "location_search_failed"
+  | "preset_location_selected"
   | "invite_copied"
   | "member_joined"
   | "swipe_started"
@@ -22,7 +29,8 @@ export type AnalyticsEventName =
   | "restaurant_api_requested"
   | "restaurant_api_succeeded"
   | "restaurant_api_failed"
-  | "restaurant_cache_written";
+  | "restaurant_cache_written"
+  | "room_restaurant_pool_created";
 
 export type TrackEventInput = {
   roomId?: string | null;

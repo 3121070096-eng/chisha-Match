@@ -21,6 +21,12 @@ create table public.rooms (
   cuisine_preference text[] not null default '{}',
   status text not null default 'open' check (status in ('open', 'choosing', 'matched', 'decided', 'closed')),
   final_restaurant_id text null,
+  location_area_key text null,
+  location_city text null,
+  location_lat double precision null,
+  location_lng double precision null,
+  location_radius_m integer null,
+  location_source text null,
   created_at timestamptz not null default now()
 );
 

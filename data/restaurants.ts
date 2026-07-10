@@ -242,11 +242,38 @@ export function getRestaurantAreaKey(location?: string): RestaurantAreaKey {
 
   if (!normalized) return DEFAULT_RESTAURANT_AREA;
   if (normalized.includes("体验") || normalized.includes("demo")) return "demo";
-  if (normalized.includes("五角场") || normalized.includes("wujiaochang")) return "wujiaochang";
-  if (normalized.includes("静安") || normalized.includes("jing")) return "jingansi";
+  if (
+    normalized.includes("五角场") ||
+    normalized.includes("大学路") ||
+    normalized.includes("复旦") ||
+    normalized.includes("wujiaochang") ||
+    normalized.includes("daxuelu")
+  ) return "wujiaochang";
+  if (
+    normalized.includes("静安") ||
+    normalized.includes("南京西路") ||
+    normalized.includes("nanjing_west") ||
+    normalized.includes("jing")
+  ) return "jingansi";
   if (normalized.includes("古北") || normalized.includes("gubei")) return "gubei";
-  if (normalized.includes("浦东") || normalized.includes("pudong")) return "pudong";
-  if (normalized.includes("安福") || normalized.includes("anfu")) return "anfulu";
+  if (
+    normalized.includes("浦东") ||
+    normalized.includes("陆家嘴") ||
+    normalized.includes("lujiazui") ||
+    normalized.includes("pudong")
+  ) return "pudong";
+  if (
+    normalized.includes("安福") ||
+    normalized.includes("淮海") ||
+    normalized.includes("huaihai") ||
+    normalized.includes("anfu")
+  ) return "anfulu";
+  if (
+    normalized.includes("人民广场") ||
+    normalized.includes("peoples_square") ||
+    normalized.includes("xujiahui") ||
+    normalized.includes("徐家汇")
+  ) return "nearby";
   if (normalized.includes("当前") || normalized.includes("附近")) return "nearby";
 
   return DEFAULT_RESTAURANT_AREA;

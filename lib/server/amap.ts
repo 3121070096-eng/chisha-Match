@@ -8,6 +8,7 @@ import { makeAmapRestaurantId } from "@/lib/restaurantCache";
 import crypto from "node:crypto";
 
 const AMAP_GEOCODE_URL = "https://restapi.amap.com/v3/geocode/geo";
+const AMAP_REGEOCODE_URL = "https://restapi.amap.com/v3/geocode/regeo";
 const AMAP_AROUND_URL = "https://restapi.amap.com/v3/place/around";
 const AMAP_TEXT_URL = "https://restapi.amap.com/v3/place/text";
 const AMAP_DETAIL_URL = "https://restapi.amap.com/v3/place/detail";
@@ -92,11 +93,26 @@ type AmapGeocodeResponse = {
   }>;
 };
 
+type AmapReverseGeocodeResponse = {
+  status?: string;
+  info?: string;
+  regeocode?: {
+    formatted_address?: string;
+    addressComponent?: {
+      city?: string | string[];
+      district?: string;
+      township?: string | string[];
+    };
+  };
+};
+
 type AmapPoi = {
   id?: string;
   name?: string;
   type?: string;
   address?: string | string[];
+  cityname?: string | string[];
+  adname?: string | string[];
   location?: string;
   distance?: string;
   biz_ext?: {
@@ -187,6 +203,11 @@ function getAddressText(address?: string | string[]) {
   return address || undefined;
 }
 
+function getAmapText(value?: string | string[]) {
+  if (Array.isArray(value)) return value.filter(Boolean).join("");
+  return value || undefined;
+}
+
 function formatDistance(distance?: string) {
   const meters = Number(distance);
   if (!Number.isFinite(meters) || meters <= 0) return "距离待确认";
@@ -216,6 +237,39 @@ function isAbstractNearbyLocation(locationLabel?: string) {
     normalized.includes("附近") ||
     normalized.includes("nearby")
   );
+}
+
+function getPoiDistanceMeters(poi: AmapPoi) {
+  const distance = Number(poi.distance);
+  return Number.isFinite(distance) ? distance : Number.POSITIVE_INFINITY;
+}
+
+function isLikelyFoodPoi(poi: AmapPoi) {
+  if (!poi.id || !poi.name?.trim()) return false;
+
+  const text = `${poi.name} ${poi.type ?? ""}`;
+  const nonFoodPattern =
+    /酒店|宾馆|旅馆|停车场|厕所|卫生间|银行|证券|医院|门诊|药房|学校|公司|写字楼|住宅|小区|公交|地铁站|加油站|维修|汽车|房产|售楼|景点|公园|电影院|KTV|棋牌|网吧|便利店|超市/;
+  const foodPattern =
+    /餐饮|餐厅|饭店|小吃|快餐|火锅|烧烤|烤肉|咖啡|茶|甜品|面包|面馆|粉|饭|粥|寿司|料理|披萨|西餐|中餐|早餐|食堂|酒馆|烧鸟|粤菜|川菜|湘菜|本帮菜/;
+
+  if (foodPattern.test(text)) return true;
+  return !nonFoodPattern.test(text);
+}
+
+function cleanAmapPois(pois: AmapPoi[]) {
+  const seen = new Set<string>();
+
+  return pois
+    .filter(isLikelyFoodPoi)
+    .filter((poi) => {
+      const key = poi.id || `${poi.name}-${getAddressText(poi.address) ?? ""}`;
+      const normalizedKey = key.trim().toLowerCase();
+      if (seen.has(normalizedKey)) return false;
+      seen.add(normalizedKey);
+      return true;
+    })
+    .sort((left, right) => getPoiDistanceMeters(left) - getPoiDistanceMeters(right));
 }
 
 export function getPresetAreaCenter(areaKey?: string, locationLabel?: string) {
@@ -472,6 +526,80 @@ export async function geocodeAmapLocation(locationLabel: string): Promise<{
   };
 }
 
+export async function reverseGeocodeAmapLocation({
+  lat,
+  lng
+}: {
+  lat: number;
+  lng: number;
+}): Promise<{
+  formattedAddress?: string;
+  district?: string;
+  township?: string;
+  city?: string;
+} | null> {
+  const url = createAmapUrl(AMAP_REGEOCODE_URL, {
+    location: `${lng},${lat}`,
+    extensions: "base",
+    radius: "1000"
+  });
+  const payload = await fetchAmapJson<AmapReverseGeocodeResponse>(url.toString());
+
+  if (payload.status !== "1") {
+    console.error("[Amap] reverse geocode failed", payload);
+    return null;
+  }
+
+  const component = payload.regeocode?.addressComponent;
+
+  return {
+    formattedAddress: payload.regeocode?.formatted_address,
+    district: component?.district,
+    township: getAmapText(component?.township),
+    city: getAmapText(component?.city)
+  };
+}
+
+export async function resolveAmapLocationByText(locationLabel: string): Promise<{
+  lat: number;
+  lng: number;
+  formattedAddress?: string;
+  city?: string;
+} | null> {
+  const label = locationLabel.trim();
+  if (!label) return null;
+
+  const geocoded = await geocodeAmapLocation(label);
+  if (geocoded) return geocoded;
+
+  const url = createAmapUrl(AMAP_TEXT_URL, {
+    keywords: label,
+    city: "上海",
+    offset: "5",
+    page: "1",
+    extensions: "base"
+  });
+  const payload = await fetchAmapJson<AmapSearchResponse>(url.toString());
+
+  if (payload.status !== "1") {
+    console.error("[Amap] location text resolve failed", payload);
+    return null;
+  }
+
+  const first = payload.pois?.find((poi) => poi.name && poi.location);
+  const coordinates = parseAmapLocation(first?.location);
+  if (!coordinates) return null;
+
+  const address = getAddressText(first?.address);
+  const city = getAmapText(first?.cityname);
+
+  return {
+    ...coordinates,
+    city,
+    formattedAddress: [first?.name, address].filter(Boolean).join(" · ") || label
+  };
+}
+
 export async function searchAmapRestaurants({
   lat,
   lng,
@@ -486,7 +614,7 @@ export async function searchAmapRestaurants({
     keywords: query,
     types: AMAP_FOOD_TYPE,
     radius: String(radiusM),
-    offset: "20",
+    offset: "25",
     page: "1",
     extensions: "all"
   });
@@ -497,7 +625,9 @@ export async function searchAmapRestaurants({
     throw new Error(`AMAP_AROUND_FAILED:${payload.info ?? "unknown"}`);
   }
 
-  const hydratedPois = await hydratePoiPhotosFromDetail(payload.pois ?? []);
+  const hydratedPois = await hydratePoiPhotosFromDetail(
+    cleanAmapPois(payload.pois ?? []).slice(0, 24)
+  );
 
   return hydratedPois
     .map((poi, index) =>
@@ -525,7 +655,7 @@ export async function searchAmapRestaurantsByText({
   const url = createAmapUrl(AMAP_TEXT_URL, {
     keywords: query || "餐厅",
     types: AMAP_FOOD_TYPE,
-    offset: "20",
+    offset: "25",
     page: "1",
     extensions: "all"
   });
@@ -536,7 +666,9 @@ export async function searchAmapRestaurantsByText({
     throw new Error(`AMAP_TEXT_FAILED:${payload.info ?? "unknown"}`);
   }
 
-  const hydratedPois = await hydratePoiPhotosFromDetail(payload.pois ?? []);
+  const hydratedPois = await hydratePoiPhotosFromDetail(
+    cleanAmapPois(payload.pois ?? []).slice(0, 24)
+  );
 
   return hydratedPois
     .map((poi, index) =>
