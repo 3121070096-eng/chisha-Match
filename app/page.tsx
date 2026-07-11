@@ -157,11 +157,11 @@ export default function HomePage() {
                 <div key={step.title} className="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm">
                   <div className="flex items-center gap-1.5">
                     <span className="grid size-5 shrink-0 place-items-center rounded-full bg-slate-950 text-[10px] font-black text-white shadow-sm">{index + 1}</span>
-                    <span className="text-[10px] font-black text-slate-700">第 {index + 1} 步</span>
-                    <Icon size={13} className="ml-auto shrink-0 text-teal-700" />
+                    <span className="text-[10px] font-black text-black">第 {index + 1} 步</span>
+                    <Icon size={13} className="ml-auto shrink-0 text-black" />
                   </div>
-                  <p className="mt-2 truncate text-xs font-black text-slate-950">{step.title}</p>
-                  <p className="mt-1 text-[11px] font-bold leading-4 text-slate-700">{step.detail}</p>
+                  <p className="mt-2 truncate text-xs font-black text-black">{step.title}</p>
+                  <p className="mt-1 text-[11px] font-bold leading-4 text-black">{step.detail}</p>
                 </div>
               );
             })}
