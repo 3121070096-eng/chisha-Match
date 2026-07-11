@@ -15,6 +15,7 @@ const currentUserKey = "chisha-match-current-user";
 const roomsKey = "chisha-match-rooms";
 const swipePrefix = "chisha-match-swipe:";
 const roomMemberPrefix = "chisha-match-room-member:";
+const onboardingPrefix = "chisha-match-onboarding:";
 
 function canUseStorage() {
   return typeof window !== "undefined" && "localStorage" in window;
@@ -76,6 +77,16 @@ export function saveRoomMemberSession(
 export function clearRoomMemberSession(roomId: string) {
   if (!canUseStorage()) return;
   window.localStorage.removeItem(`${roomMemberPrefix}${roomId}`);
+}
+
+export function hasSeenOnboarding(key: string) {
+  if (!canUseStorage()) return false;
+  return window.localStorage.getItem(`${onboardingPrefix}${key}`) === "1";
+}
+
+export function markOnboardingSeen(key: string) {
+  if (!canUseStorage()) return;
+  window.localStorage.setItem(`${onboardingPrefix}${key}`, "1");
 }
 
 export function getRooms() {

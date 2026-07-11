@@ -10,7 +10,7 @@ import { getCurrentUser, saveCurrentUser, saveRoomMemberSession } from "@/lib/st
 import { createSupabaseRoom } from "@/lib/supabaseRooms";
 import type { CreateRoomInput } from "@/types";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 export default function CreateRoomPage() {
   return (
@@ -42,6 +42,14 @@ function CreateRoomContent() {
     .split(",")
     .map((cuisine) => cuisine.trim())
     .filter(Boolean);
+
+  useEffect(() => {
+    void trackEvent({
+      eventName: "create_page_viewed",
+      metadata: { restart_with_new_location: isLocationRestart }
+    });
+    void trackEvent({ eventName: "location_prompt_shown" });
+  }, [isLocationRestart]);
 
   async function handleCreate(input: CreateRoomInput) {
     setError("");
@@ -91,7 +99,7 @@ function CreateRoomContent() {
       ) : null}
       {creating ? (
         <div className="mx-5 mt-2 rounded-lg bg-teal-50 px-4 py-3 text-sm font-black text-teal-700">
-          正在为你找附近餐厅...
+          正在为你找附近适合一起吃的餐厅...
         </div>
       ) : null}
       <CreateRoomForm

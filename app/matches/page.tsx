@@ -46,6 +46,7 @@ export default function MatchesPage() {
   const router = useRouter();
   const [room, setRoom] = useState<Room | null>(null);
   const [currentMember, setCurrentMember] = useState<RoomMember | null>(null);
+  const [members, setMembers] = useState<RoomMember[]>([]);
   const [state, setState] = useState<SwipeState | null>(null);
   const [decisionVotes, setDecisionVotes] = useState<DecisionVote[]>([]);
   const [restaurantSource, setRestaurantSource] = useState<RestaurantSourceResult | null>(null);
@@ -68,6 +69,7 @@ export default function MatchesPage() {
     const remoteState = await loadSupabaseRoomStateForMember(code, memberSession);
     setRoom(remoteState.room);
     setCurrentMember(remoteState.currentMember);
+    setMembers(remoteState.members);
     setState(remoteState.swipeState);
     return remoteState;
   }, []);
@@ -444,6 +446,8 @@ export default function MatchesPage() {
           }
           onViewResult={() => router.push(`/final?roomId=${room.id}`)}
           onRestart={() => router.push("/create")}
+          memberCount={members.length}
+          onInviteFriends={() => void copyInviteLink()}
           onChooseFinal={(restaurantId) => void chooseFinal(restaurantId)}
           onContinueSwipe={() => router.push(`/swipe?roomId=${room.id}`)}
         />

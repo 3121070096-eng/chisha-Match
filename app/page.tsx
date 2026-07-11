@@ -5,17 +5,36 @@ import { getRestaurantAreaKey, getRestaurantAreaLabel } from "@/data/restaurants
 import { trackEvent } from "@/lib/analytics";
 import { getRestaurantCover, useFallbackImage } from "@/lib/restaurantImages";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
-import { getCurrentUser, saveCurrentUser, saveRoomMemberSession } from "@/lib/storage";
+import {
+  getCurrentUser,
+  hasSeenOnboarding,
+  markOnboardingSeen,
+  saveCurrentUser,
+  saveRoomMemberSession
+} from "@/lib/storage";
 import { joinSupabaseRoom } from "@/lib/supabaseRooms";
 import { getDemoRestaurants } from "@/lib/restaurantSource";
 import { motion } from "framer-motion";
-import { ChevronRight, LogIn, Play, Plus, Sparkles, Users } from "lucide-react";
+import {
+  ChevronRight,
+  Heart,
+  LogIn,
+  MapPin,
+  Play,
+  Plus,
+  Sparkles,
+  Users
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
 export default function HomePage() {
   const router = useRouter();
-  const steps = ["创建饭局", "发链接给朋友", "一起左右滑餐厅", "自动 Match 那家"];
+  const steps = [
+    { title: "创建饭局", detail: "选地点和预算", icon: MapPin },
+    { title: "发给朋友", detail: "一起滑同一批", icon: Users },
+    { title: "自动 Match", detail: "最后一起决定", icon: Heart }
+  ];
   const homeRestaurants = getDemoRestaurants();
   const [joinOpen, setJoinOpen] = useState(false);
   const [nickname, setNickname] = useState("");
@@ -26,7 +45,22 @@ export default function HomePage() {
   useEffect(() => {
     const user = getCurrentUser();
     if (user?.nickname) setNickname(user.nickname);
+
+    if (!hasSeenOnboarding("homepage-viewed")) {
+      markOnboardingSeen("homepage-viewed");
+      void trackEvent({ eventName: "homepage_viewed" });
+    }
   }, []);
+
+  function startCreateRoom() {
+    void trackEvent({ eventName: "create_room_cta_clicked", metadata: { entry: "homepage" } });
+    router.push("/create");
+  }
+
+  function startDemo() {
+    void trackEvent({ eventName: "demo_cta_clicked", metadata: { entry: "homepage" } });
+    router.push("/demo");
+  }
 
   async function handleJoin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -40,6 +74,10 @@ export default function HomePage() {
     setJoining(true);
 
     try {
+      void trackEvent({
+        eventName: "member_name_submitted",
+        metadata: { entry: "homepage_join", nickname: nickname.trim() || "饭友" }
+      });
       const user = saveCurrentUser(nickname || "饭友");
       const { room, member } = await joinSupabaseRoom(code, user);
       saveRoomMemberSession(room.id, member, user.id);
@@ -53,6 +91,14 @@ export default function HomePage() {
           room_area_key: getRestaurantAreaKey(room.location)
         }
       });
+      if (room.status === "decided") {
+        void trackEvent({
+          roomId: room.id,
+          memberId: member.id,
+          eventName: "joined_decided_room",
+          metadata: { restaurant_id: room.finalRestaurantId, entry: "homepage_join" }
+        });
+      }
       router.push(`/room?roomId=${room.id}`);
     } catch (joinError) {
       console.error("[Home] join room failed", joinError);
@@ -66,7 +112,7 @@ export default function HomePage() {
     <AppChrome
       rightSlot={
         <div className="rounded-full bg-white/85 px-3 py-2 text-xs font-black text-teal-700 shadow-sm">
-          V3.4
+          V3.6
         </div>
       }
     >
@@ -78,7 +124,7 @@ export default function HomePage() {
           className="flex flex-1 flex-col justify-between"
         >
           <div>
-            <div className="relative min-h-[390px] overflow-hidden rounded-lg bg-slate-950 text-white shadow-[0_24px_70px_rgba(15,118,110,0.22)]">
+            <div className="relative min-h-[350px] overflow-hidden rounded-lg bg-slate-950 text-white shadow-[0_24px_70px_rgba(15,118,110,0.22)]">
               <img
                 src={getRestaurantCover(homeRestaurants[9])}
                 alt="朋友聚餐"
@@ -96,38 +142,43 @@ export default function HomePage() {
                 Match!
               </div>
               <div className="absolute bottom-0 left-0 right-0 p-6">
-                <p className="text-xs font-black tracking-[0.12em] text-teal-100">吃啥 Match · V3.4</p>
-                <h1 className="mt-4 max-w-[10ch] text-4xl font-black leading-[1.02]">
-                  今天吃什么，不用再吵了。
+                <p className="text-xs font-black tracking-[0.12em] text-teal-100">吃啥 Match · V3.6</p>
+                <h1 className="mt-3 max-w-[11ch] text-[2rem] font-black leading-[1.08]">
+                  像交友软件一样，和朋友一起滑餐厅
                 </h1>
-                <p className="mt-4 max-w-[18rem] text-sm font-semibold leading-6 text-white/82">
-                  创建饭局，邀请朋友，一起左右滑餐厅，自动匹配大家都想吃的那家。
+                <p className="mt-3 max-w-[19rem] text-sm font-semibold leading-6 text-white/82">
+                  左滑不想吃，右滑想吃。你和朋友都喜欢的餐厅会自动 Match，再也不用群里问“吃什么”。
                 </p>
               </div>
             </div>
 
-            <div className="mt-5 border-y border-teal-900/8 py-4">
-              <p className="text-xs font-black text-slate-500">四步决定今晚吃什么</p>
-              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
-                {steps.map((step, index) => (
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {steps.map((step, index) => {
+                const Icon = step.icon;
+
+                return (
                   <div
-                    key={step}
-                    className="flex min-w-0 items-center gap-2 text-xs font-black text-slate-700"
+                    key={step.title}
+                    className="min-w-0 rounded-lg bg-white px-3 py-3 shadow-sm ring-1 ring-teal-900/5"
                   >
-                    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-teal-500 text-[10px] text-white">
-                      {index + 1}
-                    </span>
-                    <span className="truncate">{step}</span>
+                    <div className="flex items-center gap-1.5 text-xs font-black text-slate-800">
+                      <span className="grid size-5 shrink-0 place-items-center rounded-full bg-teal-500 text-[10px] text-white">
+                        {index + 1}
+                      </span>
+                      <Icon size={13} className="text-teal-600" />
+                    </div>
+                    <p className="mt-2 truncate text-xs font-black text-slate-800">{step.title}</p>
+                    <p className="mt-1 text-[10px] font-bold leading-4 text-slate-400">{step.detail}</p>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </div>
 
           <div className="safe-bottom mt-7 space-y-3">
             <button
               type="button"
-              onClick={() => router.push("/create")}
+              onClick={startCreateRoom}
               className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-teal-500 text-base font-black text-white shadow-lg shadow-teal-500/25 transition active:scale-[0.98]"
             >
               <Plus size={21} />
@@ -136,19 +187,19 @@ export default function HomePage() {
             </button>
             <button
               type="button"
-              onClick={() => router.push("/demo")}
+              onClick={startDemo}
               className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-white text-base font-black text-teal-700 shadow-sm ring-1 ring-teal-200 transition active:scale-[0.98]"
             >
               <Play size={20} className="fill-teal-500 text-teal-500" />
-              先自己体验一下
+              快速体验
             </button>
             <button
               type="button"
               onClick={() => setJoinOpen((value) => !value)}
-              className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-white text-base font-black text-slate-800 shadow-sm ring-1 ring-teal-900/10 transition active:scale-[0.98]"
+              className="flex h-10 w-full items-center justify-center gap-2 text-sm font-black text-slate-600 transition active:scale-[0.98]"
             >
-              <LogIn size={20} />
-              加入饭局
+              <LogIn size={16} />
+              已有饭局？加入饭局
             </button>
           </div>
         </motion.div>

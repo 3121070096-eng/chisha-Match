@@ -1,14 +1,17 @@
 "use client";
 
 import type { Restaurant } from "@/data/restaurants";
-import { trackImageLoadFailed } from "@/lib/analytics";
+import { trackEvent, trackImageLoadFailed } from "@/lib/analytics";
 import { getRestaurantCover, useFallbackImage } from "@/lib/restaurantImages";
 import { AnimatePresence, motion } from "framer-motion";
 import { Heart, ListChecks, Sparkles, X } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 type MatchModalProps = {
   restaurant: Restaurant | null;
   likedBy: string[];
+  roomId?: string;
+  memberId?: string;
   onContinue: () => void;
   onViewMatches: () => void;
 };
@@ -16,10 +19,24 @@ type MatchModalProps = {
 export function MatchModal({
   restaurant,
   likedBy,
+  roomId,
+  memberId,
   onContinue,
   onViewMatches
 }: MatchModalProps) {
   const count = likedBy.length;
+  const lastTrackedRestaurantId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!restaurant || lastTrackedRestaurantId.current === restaurant.id) return;
+    lastTrackedRestaurantId.current = restaurant.id;
+    void trackEvent({
+      roomId,
+      memberId,
+      eventName: "match_modal_viewed",
+      metadata: { restaurant_id: restaurant.id, liked_member_count: likedBy.length }
+    });
+  }, [likedBy.length, memberId, restaurant, roomId]);
 
   return (
     <AnimatePresence>
@@ -81,10 +98,13 @@ export function MatchModal({
 
             <div className="p-5 text-center">
               <h3 className="text-2xl font-black text-slate-950">
-                你们都想吃这家！
+                你们 Match 了！
               </h3>
               <p className="mt-2 text-sm font-bold leading-relaxed text-slate-600">
-                {likedBy.join("、")} 已经达成 {count} 人共同心动
+                你和朋友都想吃这家，可以先加入共同心动榜。
+              </p>
+              <p className="mt-1 text-xs font-black text-teal-600">
+                {likedBy.join("、")} 已经点头 · {count} 人共同心动
               </p>
               <button
                 type="button"

@@ -3,17 +3,18 @@
 import { RestaurantCard } from "@/components/RestaurantCard";
 import { RestaurantDetailSheet } from "@/components/RestaurantDetailSheet";
 import type { Restaurant } from "@/data/restaurants";
-import { trackImageLoadFailed } from "@/lib/analytics";
+import { trackEvent, trackImageLoadFailed } from "@/lib/analytics";
 import { formatRestaurantPrice } from "@/lib/restaurantDisplay";
 import {
   getRestaurantCover,
   preloadRestaurantImages,
   useFallbackImage
 } from "@/lib/restaurantImages";
+import { hasSeenOnboarding, markOnboardingSeen } from "@/lib/storage";
 import type { Room, SwipeDecision, SwipeState } from "@/types";
 import { motion } from "framer-motion";
 import { CircleHelp, Heart, ListChecks, UtensilsCrossed, X } from "lucide-react";
-import { useLayoutEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 type SwipeDeckProps = {
   room: Room;
@@ -23,6 +24,7 @@ type SwipeDeckProps = {
   totalRestaurants: number;
   onDecision: (decision: SwipeDecision) => void;
   onViewMatches: () => void;
+  tutorialMode?: "room" | "demo";
 };
 
 export function SwipeDeck({
@@ -32,9 +34,11 @@ export function SwipeDeck({
   deckRestaurants,
   totalRestaurants,
   onDecision,
-  onViewMatches
+  onViewMatches,
+  tutorialMode = "room"
 }: SwipeDeckProps) {
   const [showHelp, setShowHelp] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const [detailRestaurant, setDetailRestaurant] = useState<Restaurant | null>(null);
   const selectedCount = Math.min(state.seenIds.length, totalRestaurants);
   const visibleRestaurants = useMemo(() => {
@@ -50,6 +54,29 @@ export function SwipeDeck({
     });
   }, [visibleRestaurants]);
 
+  useEffect(() => {
+    if (!primaryRestaurant) return;
+    const tutorialKey = `swipe-tutorial:${tutorialMode}`;
+    if (hasSeenOnboarding(tutorialKey)) return;
+
+    markOnboardingSeen(tutorialKey);
+    setShowTutorial(true);
+    void trackEvent({
+      roomId: tutorialMode === "room" ? room.id : undefined,
+      eventName: "swipe_tutorial_viewed",
+      metadata: { mode: tutorialMode }
+    });
+  }, [primaryRestaurant, room.id, tutorialMode]);
+
+  function dismissTutorial() {
+    setShowTutorial(false);
+    void trackEvent({
+      roomId: tutorialMode === "room" ? room.id : undefined,
+      eventName: "swipe_tutorial_dismissed",
+      metadata: { mode: tutorialMode }
+    });
+  }
+
   const detailLikedBy = useMemo(() => {
     if (!detailRestaurant) return [];
     return (
@@ -62,6 +89,7 @@ export function SwipeDeck({
     <section className="flex min-h-0 flex-1 flex-col px-4 pb-2 pt-0">
       <div className="mb-2 flex items-center justify-between gap-2 px-1">
         <p className="min-w-0 truncate text-xs font-black text-slate-500">
+          <span className="mr-1 text-teal-600">第 2 步 / 3 步</span>
           {room.location} · {room.name}
         </p>
         <div className="flex shrink-0 items-center gap-1.5 text-[11px] font-black">
@@ -169,6 +197,42 @@ export function SwipeDeck({
             </div>
           </motion.div>
         )}
+
+        {showTutorial ? (
+          <motion.aside
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="pointer-events-none absolute inset-x-2 bottom-3 z-30"
+          >
+            <div className="pointer-events-auto relative rounded-lg bg-slate-950 p-4 text-white shadow-[0_18px_48px_rgba(15,23,42,0.28)]">
+              <button
+                type="button"
+                aria-label="关闭滑卡教学"
+                onClick={dismissTutorial}
+                className="absolute right-3 top-3 grid size-8 place-items-center rounded-full bg-white/12 text-white"
+              >
+                <X size={15} />
+              </button>
+              <p className="pr-8 text-sm font-black">
+                {tutorialMode === "demo" ? "这是一个模拟饭局，先试试滑卡和 Match。" : "像交友软件一样滑餐厅"}
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-black">
+                <span className="rounded-lg bg-white/10 px-3 py-2 text-rose-200">左滑：不想吃</span>
+                <span className="rounded-lg bg-teal-500 px-3 py-2">右滑：想吃</span>
+              </div>
+              <p className="mt-3 text-xs font-bold leading-5 text-slate-300">
+                你和朋友都右滑同一家，就会 Match。
+              </p>
+              <button
+                type="button"
+                onClick={dismissTutorial}
+                className="mt-3 h-10 w-full rounded-full bg-white text-sm font-black text-slate-900"
+              >
+                知道了，开始滑
+              </button>
+            </div>
+          </motion.aside>
+        ) : null}
       </div>
 
       <RestaurantDetailSheet

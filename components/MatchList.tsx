@@ -12,6 +12,7 @@ import {
 import { motion } from "framer-motion";
 import {
   Check,
+  Copy,
   Crown,
   Dices,
   Heart,
@@ -42,6 +43,8 @@ type MatchListProps = {
   decidedRestaurantName?: string | null;
   onViewResult?: () => void;
   onRestart?: () => void;
+  memberCount?: number;
+  onInviteFriends?: () => void;
 };
 
 export function MatchList({
@@ -61,26 +64,44 @@ export function MatchList({
   isDecided = false,
   decidedRestaurantName,
   onViewResult,
-  onRestart
+  onRestart,
+  memberCount = 2,
+  onInviteFriends
 }: MatchListProps) {
   if (items.length === 0) {
+    const onlyOneMember = memberCount <= 1;
+
     return (
       <div className="grid flex-1 place-items-center text-center">
         <div className="w-full rounded-lg bg-white p-6 shadow-[0_18px_50px_rgba(15,118,110,0.12)] ring-1 ring-teal-900/5">
           <div className="mx-auto grid size-16 place-items-center rounded-full bg-rose-50 text-rose-400">
             <Heart size={30} />
           </div>
-          <h2 className="mt-5 text-2xl font-black text-slate-950">榜单还空着</h2>
+          <h2 className="mt-5 text-2xl font-black text-slate-950">
+            {onlyOneMember ? "现在只有你一个人" : "还没有共同心动餐厅"}
+          </h2>
           <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-            还没有共同喜欢的餐厅，继续滑滑看。
+            {onlyOneMember
+              ? "先滑也可以，但邀请朋友后才会产生共同心动。"
+              : "继续滑几家，朋友喜欢同一家后会出现在这里。"}
           </p>
           <button
             type="button"
             onClick={onContinueSwipe}
             className="mt-5 h-12 w-full rounded-full bg-teal-500 text-base font-black text-white shadow-lg shadow-teal-500/25"
           >
-            去滑卡
+            {onlyOneMember ? "继续自己滑" : "继续滑"}
           </button>
+          {onInviteFriends ? (
+            <button
+              type="button"
+              onClick={onInviteFriends}
+              className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-slate-100 text-base font-black text-slate-700"
+            >
+              <Copy size={17} />
+              复制邀请链接
+            </button>
+          ) : null}
         </div>
       </div>
     );

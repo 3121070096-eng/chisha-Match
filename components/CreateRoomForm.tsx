@@ -6,6 +6,7 @@ import {
   popularLocations,
   type RoomLocation
 } from "@/data/locations";
+import { FlowProgress } from "@/components/FlowProgress";
 import { cuisines } from "@/data/restaurants";
 import { trackEvent } from "@/lib/analytics";
 import type { CreateRoomInput } from "@/types";
@@ -231,7 +232,11 @@ export function CreateRoomForm({
     }
 
     if (!finalLocation) {
-      setLocationNotice("请选择当前位置、搜索地点或热门地点后再创建饭局。");
+      setLocationNotice("先选一个吃饭地点，这样才能帮你找附近餐厅。");
+      void trackEvent({
+        eventName: "create_room_validation_failed",
+        metadata: { reason: "location_missing" }
+      });
       return;
     }
 
@@ -275,14 +280,15 @@ export function CreateRoomForm({
             <SlidersHorizontal size={15} />
             饭局偏好
           </div>
-          <h1 className="mt-4 text-3xl font-black leading-tight">先圈定集合点，再一起滑附近餐厅</h1>
+          <h1 className="mt-4 text-3xl font-black leading-tight">先告诉我们你们想在哪附近吃饭</h1>
           <p className="mt-3 text-sm font-semibold leading-6 text-slate-300">
-            可以用当前位置、搜商场学校地铁站，或者直接点热门地点。
+            选好地点后，你和朋友会看到同一批附近餐厅。
           </p>
+          <FlowProgress stage="create" className="mt-4 bg-white/12 text-teal-100 shadow-none ring-white/10" />
         </div>
 
         <label className="block text-sm font-black text-slate-700">
-          饭局名称
+          1. 饭局名称
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
@@ -293,7 +299,7 @@ export function CreateRoomForm({
         <section className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
           <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-700">
             <MapPin size={18} className="text-teal-500" />
-            你想在哪附近吃？
+            2. 你想在哪附近吃？
           </div>
 
           <button
@@ -305,6 +311,7 @@ export function CreateRoomForm({
             {locating ? <Loader2 size={18} className="animate-spin" /> : <LocateFixed size={18} />}
             {locating ? "正在获取当前位置" : "使用当前位置"}
           </button>
+          <p className="mt-2 text-xs font-bold leading-5 text-slate-400">适合现在就要出门吃。</p>
 
           <div className="mt-4">
             <div className="mb-2 text-xs font-black text-slate-400">或搜索地点</div>
@@ -328,6 +335,7 @@ export function CreateRoomForm({
                 {searching ? "查找中" : "搜索"}
               </button>
             </div>
+            <p className="mt-2 text-xs font-bold leading-5 text-slate-400">适合约在商场、学校、地铁站附近。</p>
           </div>
 
           <div className="mt-4">
@@ -354,6 +362,7 @@ export function CreateRoomForm({
                 );
               })}
             </div>
+            <p className="mt-2 text-xs font-bold leading-5 text-slate-400">快速选择常用商圈。</p>
           </div>
 
           <div className="mt-4 rounded-lg bg-teal-50 px-3 py-2 text-xs font-black leading-5 text-teal-700">
@@ -366,11 +375,38 @@ export function CreateRoomForm({
           ) : null}
         </section>
 
+        <div>
+          <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-700">
+            <Utensils size={18} className="text-teal-500" />
+            3. 菜系偏好 <span className="text-xs font-bold text-slate-400">不选也没关系</span>
+          </div>
+          <div className="flex max-h-[210px] flex-wrap gap-2 overflow-y-auto no-scrollbar">
+            {cuisines.map((cuisine) => {
+              const active = selectedCuisines.includes(cuisine);
+
+              return (
+                <button
+                  key={cuisine}
+                  type="button"
+                  onClick={() => toggleCuisine(cuisine)}
+                  className={`rounded-full px-4 py-2 text-sm font-black transition ${
+                    active
+                      ? "bg-teal-500 text-white shadow-md shadow-teal-500/20"
+                      : "bg-white text-slate-600 ring-1 ring-teal-900/10"
+                  }`}
+                >
+                  {cuisine}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-black text-slate-700">
               <Wallet size={18} className="text-teal-500" />
-              人均预算
+              4. 人均预算
             </div>
             <div className="text-2xl font-black text-teal-600">¥{budget}</div>
           </div>
@@ -385,7 +421,7 @@ export function CreateRoomForm({
             className="mt-4 w-full accent-teal-500"
           />
           <div className="mt-2 flex justify-between text-xs font-bold text-slate-400">
-            <span>轻松吃</span>
+            <span>不设预算也可以，先用建议值</span>
             <span>认真吃</span>
           </div>
         </div>
@@ -418,32 +454,6 @@ export function CreateRoomForm({
           </div>
         </div>
 
-        <div>
-          <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-700">
-            <Utensils size={18} className="text-teal-500" />
-            菜系偏好
-          </div>
-          <div className="flex max-h-[210px] flex-wrap gap-2 overflow-y-auto no-scrollbar">
-            {cuisines.map((cuisine) => {
-              const active = selectedCuisines.includes(cuisine);
-
-              return (
-                <button
-                  key={cuisine}
-                  type="button"
-                  onClick={() => toggleCuisine(cuisine)}
-                  className={`rounded-full px-4 py-2 text-sm font-black transition ${
-                    active
-                      ? "bg-teal-500 text-white shadow-md shadow-teal-500/20"
-                      : "bg-white text-slate-600 ring-1 ring-teal-900/10"
-                  }`}
-                >
-                  {cuisine}
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </motion.div>
 
       <div className="safe-bottom mt-auto pt-7">
@@ -453,7 +463,7 @@ export function CreateRoomForm({
           className="flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-teal-500 px-4 text-base font-black text-white shadow-lg shadow-teal-500/25 transition enabled:active:scale-[0.98] disabled:bg-slate-300 disabled:shadow-none"
         >
           {busy ? <Loader2 size={20} className="animate-spin" /> : <Plus size={21} />}
-          {disabled ? "正在为你找附近餐厅" : "创建饭局"}
+          {disabled ? "正在为你找附近适合一起吃的餐厅..." : "创建饭局并生成餐厅"}
         </button>
       </div>
     </form>

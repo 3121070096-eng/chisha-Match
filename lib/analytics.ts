@@ -8,6 +8,12 @@ import { getRestaurantFallbackType } from "@/lib/restaurantImages";
 
 export type AnalyticsEventName =
   | "room_created"
+  | "homepage_viewed"
+  | "create_room_cta_clicked"
+  | "demo_cta_clicked"
+  | "create_page_viewed"
+  | "location_prompt_shown"
+  | "create_room_validation_failed"
   | "location_selected"
   | "current_location_requested"
   | "current_location_succeeded"
@@ -18,11 +24,18 @@ export type AnalyticsEventName =
   | "preset_location_selected"
   | "invite_copied"
   | "invite_link_copied"
+  | "invite_hint_viewed"
+  | "start_swiping_clicked"
+  | "join_page_viewed"
+  | "member_name_submitted"
+  | "joined_decided_room"
   | "member_joined"
   | "swipe_started"
   | "restaurant_liked"
   | "restaurant_passed"
   | "match_created"
+  | "match_modal_viewed"
+  | "match_list_cta_clicked"
   | "match_list_viewed"
   | "final_decided"
   | "feedback_submitted"
@@ -50,6 +63,11 @@ export type AnalyticsEventName =
   | "decided_room_landed"
   | "room_recreated_from_previous"
   | "restart_with_new_location_clicked"
+  | "swipe_tutorial_viewed"
+  | "swipe_tutorial_dismissed"
+  | "demo_started"
+  | "demo_finished"
+  | "demo_to_real_room_clicked"
   | "amap_opened";
 
 export type TrackEventInput = {

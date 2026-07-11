@@ -4,7 +4,7 @@
 
 ## 项目简介
 
-这个 Beta 版本已经接入 Supabase，支持真实多人房间、成员加入、滑卡记录、共同心动餐厅榜和最终餐厅选择。V3.0 增加了高德 Web 服务 API Spike；V3.1 增强高德餐厅图片获取和同源代理；V3.2 增加真实定位、地点搜索和热门地点创建饭局；V3.3 新增餐厅质量处理层；V3.4 把 Match 后的榜单升级为可投票、可推荐、可随机拍板的决策面板。
+这个 Beta 版本已经接入 Supabase，支持真实多人房间、成员加入、滑卡记录、共同心动餐厅榜和最终餐厅选择。V3.0 增加了高德 Web 服务 API Spike；V3.1 增强高德餐厅图片获取和同源代理；V3.2 增加真实定位、地点搜索和热门地点创建饭局；V3.3 新增餐厅质量处理层；V3.4 把 Match 后的榜单升级为可投票、可推荐、可随机拍板的决策面板；V3.5 增加结果分享与饭局复用；V3.6 聚焦新手引导与首次使用完成率。
 
 ## 核心功能
 
@@ -155,6 +155,20 @@ V3.4 事件包括：`decision_recommendation_viewed`、`decision_random_started`
 - 分享卡第一版不生成图片文件，适合直接截图发送到群聊。
 
 V3.5 新增事件：`share_text_copied`、`invite_link_copied`、`decided_room_viewed`、`decided_room_landed`、`room_recreated_from_previous`、`restart_with_new_location_clicked`、`share_card_viewed`。事件写入失败只会输出调试信息，不会中断饭局主流程。
+
+## V3.6 新手引导与首次使用转化
+
+V3.6 不新增第三方 API，重点是让第一次打开产品的人在不需要解释的情况下完成一次饭局：
+
+- 首页改为「像交友软件一样，和朋友一起滑餐厅」的直接表达，保留清晰的「创建饭局」与「快速体验」两个主入口，并加入三步玩法说明。
+- 创建页按名称、地点、菜系、预算组织信息；地点补充当前位置、搜索地点与热门地点的使用提示，缺少地点时给出明确下一步。
+- 房间页增加邀请下一步、成员状态、加入身份说明与流程进度；新成员知道自己加入的是哪个饭局，也知道加入后该做什么。
+- 滑卡页增加只展示一次的轻量教学，不覆盖整张卡片，也不会阻塞拖拽；餐厅加载失败、无 Match、单人房间等空状态都提供下一步操作。
+- Match 弹窗、体验模式与结果路径增加更清晰的行动文案，demo 可以自然引导到真实饭局创建。
+
+V3.6 新增事件：`homepage_viewed`、`create_room_cta_clicked`、`demo_cta_clicked`、`create_page_viewed`、`location_prompt_shown`、`create_room_validation_failed`、`invite_hint_viewed`、`start_swiping_clicked`、`join_page_viewed`、`member_name_submitted`、`swipe_tutorial_viewed`、`swipe_tutorial_dismissed`、`match_modal_viewed`、`match_list_cta_clicked`、`demo_started`、`demo_finished`、`demo_to_real_room_clicked`。
+
+真实用户测试建议：观察用户是否能在不解释的情况下创建饭局、是否知道复制链接邀请朋友、是否理解左右滑与 Match、能否完成最终决定，以及是否愿意把结果发到群里。
 
 ## 技术栈
 

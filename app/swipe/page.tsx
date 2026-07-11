@@ -36,7 +36,7 @@ import type {
   SwipeDecision,
   SwipeState
 } from "@/types";
-import { Home, RotateCcw, UserRoundPlus } from "lucide-react";
+import { Home, MapPin, RotateCcw, UserRoundPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -70,6 +70,8 @@ export default function SwipePage() {
   const [popup, setPopup] = useState<Popup | null>(null);
   const [missingRoom, setMissingRoom] = useState(false);
   const [error, setError] = useState("");
+  const [restaurantLoadFailed, setRestaurantLoadFailed] = useState(false);
+  const [restaurantReloadKey, setRestaurantReloadKey] = useState(0);
 
   const refreshRoomForMember = useCallback(async (
     code: string,
@@ -203,14 +205,20 @@ export default function SwipePage() {
     let mounted = true;
 
     async function loadRestaurants() {
+      setRestaurantLoadFailed(false);
       try {
         const source = await getRestaurantSourceForRoom(activeRoom);
         if (!mounted) return;
         setRestaurantSource(source);
+        if (source.restaurants.length === 0) {
+          setRestaurantLoadFailed(true);
+          setError("附近餐厅暂时没有加载出来。");
+        }
       } catch (restaurantError) {
         if (!mounted) return;
         console.error("[Swipe] load restaurant source failed", restaurantError);
-        setError("餐厅候选同步失败，已尝试使用本地餐厅包。");
+        setRestaurantLoadFailed(true);
+        setError("附近餐厅加载失败了。");
       }
     }
 
@@ -219,7 +227,7 @@ export default function SwipePage() {
     return () => {
       mounted = false;
     };
-  }, [room]);
+  }, [restaurantReloadKey, room]);
 
   const deckRestaurants = useMemo(() => {
     if (!state || !restaurantSource) return [];
@@ -472,6 +480,25 @@ export default function SwipePage() {
     );
   }
 
+  if (restaurantLoadFailed || (restaurantSource && restaurantSource.restaurants.length === 0)) {
+    return (
+      <AppChrome showBack title="滑卡选择">
+        <EmptyState
+          icon={MapPin}
+          title="附近餐厅加载失败了"
+          description="可以换个地点，或稍后再试。"
+          primaryLabel="换个地点"
+          onPrimary={() => router.push("/create")}
+          secondaryLabel="重新加载"
+          onSecondary={() => {
+            setError("");
+            setRestaurantReloadKey((value) => value + 1);
+          }}
+        />
+      </AppChrome>
+    );
+  }
+
   if (!restaurantSource) {
     return (
       <AppChrome showBack title="开始选择">
@@ -514,15 +541,31 @@ export default function SwipePage() {
         deckRestaurants={deckRestaurants}
         totalRestaurants={roomRestaurants.length}
         onDecision={handleDecision}
-        onViewMatches={() => router.push(`/matches?roomId=${room.id}`)}
+        onViewMatches={() => {
+          void trackEvent({
+            roomId: room.id,
+            memberId: currentMember.id,
+            eventName: "match_list_cta_clicked",
+            metadata: { entry: "swipe_deck" }
+          });
+          router.push(`/matches?roomId=${room.id}`);
+        }}
       />
       <BottomNav roomId={room.id} active="swipe" />
       <MatchModal
         restaurant={popupRestaurant}
         likedBy={popup?.likedBy ?? []}
+        roomId={room.id}
+        memberId={currentMember.id}
         onContinue={() => setPopup(null)}
         onViewMatches={() => {
           setPopup(null);
+          void trackEvent({
+            roomId: room.id,
+            memberId: currentMember.id,
+            eventName: "match_list_cta_clicked",
+            metadata: { entry: "match_modal" }
+          });
           router.push(`/matches?roomId=${room.id}`);
         }}
       />

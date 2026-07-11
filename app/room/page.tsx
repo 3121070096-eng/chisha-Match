@@ -2,6 +2,7 @@
 
 import { AppChrome } from "@/components/AppChrome";
 import { EmptyState } from "@/components/EmptyState";
+import { FlowProgress } from "@/components/FlowProgress";
 import { getRestaurantAreaKey, getRestaurantAreaLabel } from "@/data/restaurants";
 import { trackEvent } from "@/lib/analytics";
 import { copyToClipboard, getRoomInviteLink } from "@/lib/share";
@@ -22,12 +23,14 @@ import {
 import type { Room, RoomMember, RoomMemberSession } from "@/types";
 import { motion } from "framer-motion";
 import {
+  CircleCheck,
   Copy,
   Home,
   Link as LinkIcon,
   MapPin,
   Play,
   Sparkles,
+  UserRoundPlus,
   Users,
   Wallet
 } from "lucide-react";
@@ -54,6 +57,7 @@ export default function RoomPage() {
   const [roomCode, setRoomCode] = useState("");
   const [nickname, setNickname] = useState("");
   const [copied, setCopied] = useState(false);
+  const [joinedNotice, setJoinedNotice] = useState(false);
   const [missingRoom, setMissingRoom] = useState(false);
   const [error, setError] = useState("");
 
@@ -63,16 +67,6 @@ export default function RoomPage() {
       setRoom(state.room);
       setMembers(state.members);
       setCurrentMember(state.currentMember);
-      void trackEvent({
-        roomId: state.room.id,
-        memberId: state.currentMember.id,
-        eventName: "member_joined",
-        metadata: {
-          member_name: state.currentMember.nickname,
-          room_location_label: getRestaurantAreaLabel(state.room.location),
-          room_area_key: getRestaurantAreaKey(state.room.location)
-        }
-      });
       return state;
     },
     []
@@ -181,11 +175,39 @@ export default function RoomPage() {
     router.replace(`/final?roomId=${room.id}`);
   }, [currentMember, room, router]);
 
+  useEffect(() => {
+    if (!room || currentMember) return;
+    if (!markOnce(`chisha:event:join_page_viewed:${room.id}`)) return;
+
+    void trackEvent({
+      roomId: room.id,
+      eventName: "join_page_viewed",
+      metadata: { member_count: members.length, room_status: room.status ?? "open" }
+    });
+  }, [currentMember, members.length, room]);
+
+  useEffect(() => {
+    if (!room || !currentMember) return;
+    if (!markOnce(`chisha:event:invite_hint_viewed:${room.id}:${currentMember.id}`)) return;
+
+    void trackEvent({
+      roomId: room.id,
+      memberId: currentMember.id,
+      eventName: "invite_hint_viewed",
+      metadata: { member_count: members.length }
+    });
+  }, [currentMember, members.length, room]);
+
   async function handleNickname(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!room) return;
 
     setError("");
+    void trackEvent({
+      roomId: room.id,
+      eventName: "member_name_submitted",
+      metadata: { nickname: nickname.trim() || "饭友" }
+    });
 
     try {
       const saved = saveCurrentUser(nickname);
@@ -194,6 +216,25 @@ export default function RoomPage() {
       setRoom(state.room);
       setMembers(state.members);
       setCurrentMember(state.currentMember);
+      setJoinedNotice(true);
+      void trackEvent({
+        roomId: state.room.id,
+        memberId: state.currentMember.id,
+        eventName: "member_joined",
+        metadata: {
+          member_name: state.currentMember.nickname,
+          room_location_label: getRestaurantAreaLabel(state.room.location),
+          room_area_key: getRestaurantAreaKey(state.room.location)
+        }
+      });
+      if (state.room.status === "decided") {
+        void trackEvent({
+          roomId: state.room.id,
+          memberId: state.currentMember.id,
+          eventName: "joined_decided_room",
+          metadata: { restaurant_id: state.room.finalRestaurantId }
+        });
+      }
     } catch (joinError) {
       console.error("[Room] join room failed", joinError);
       setError(getReadableSupabaseError(joinError, "加入房间失败"));
@@ -222,6 +263,21 @@ export default function RoomPage() {
       setCopied(false);
       setError("复制链接失败，请稍后再试。");
     }
+  }
+
+  function handleStartSwiping() {
+    if (!room || !currentMember) return;
+    void trackEvent({
+      roomId: room.id,
+      memberId: currentMember.id,
+      eventName: "start_swiping_clicked",
+      metadata: { member_count: members.length }
+    });
+    router.push(
+      room.status === "decided"
+        ? `/final?roomId=${room.id}`
+        : `/swipe?roomId=${room.id}`
+    );
   }
 
   if (missingRoom) {
@@ -283,6 +339,10 @@ export default function RoomPage() {
                 <p className="mt-2">{members.length} 人</p>
               </div>
             </div>
+            <FlowProgress
+              stage={room.status === "decided" ? "decided" : "room"}
+              className="mt-4 bg-white/14 text-teal-50 shadow-none ring-white/10"
+            />
           </div>
 
           {room.status === "decided" ? (
@@ -296,8 +356,19 @@ export default function RoomPage() {
               onSubmit={handleNickname}
               className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5"
             >
+              <div className="mb-4 flex items-start gap-3">
+                <div className="grid size-11 shrink-0 place-items-center rounded-full bg-teal-50 text-teal-600">
+                  <UserRoundPlus size={21} />
+                </div>
+                <div>
+                  <p className="text-lg font-black text-slate-950">你被邀请加入一个饭局</p>
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-500">
+                    {members[0]?.nickname ? `由 ${members[0].nickname} 发起 · ` : ""}已加入 {members.length} 人
+                  </p>
+                </div>
+              </div>
               <label className="block text-sm font-black text-slate-700">
-                你的昵称
+                输入你的昵称，开始一起滑餐厅
                 <input
                   value={nickname}
                   onChange={(event) => setNickname(event.target.value)}
@@ -314,7 +385,7 @@ export default function RoomPage() {
                 type="submit"
                 className="mt-4 h-12 w-full rounded-full bg-slate-950 text-base font-black text-white"
               >
-                加入房间
+                {room.status === "decided" ? "加入并查看结果" : "加入并开始滑卡"}
               </button>
             </form>
           ) : (
@@ -325,6 +396,13 @@ export default function RoomPage() {
               </p>
             </div>
           )}
+
+          {joinedNotice ? (
+            <div className="flex items-center gap-2 rounded-lg bg-teal-50 px-4 py-3 text-sm font-black text-teal-700 ring-1 ring-teal-100">
+              <CircleCheck size={18} />
+              加入成功！接下来左滑不想吃，右滑想吃。
+            </div>
+          ) : null}
 
           <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
             <div className="mb-3 flex items-start justify-between gap-3">
@@ -337,7 +415,7 @@ export default function RoomPage() {
               </span>
             </div>
             <p className="mb-3 text-sm font-bold leading-6 text-slate-500">
-              把这个饭局链接发给朋友，朋友加入后就能一起滑餐厅。
+              下一步：把链接发给朋友，大家一起滑同一批餐厅。
             </p>
             <div className="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200/70">
               <p className="break-all text-sm font-bold leading-6 text-slate-600">
@@ -357,7 +435,7 @@ export default function RoomPage() {
             </div>
             {copied ? (
               <p className="mt-2 text-sm font-black text-teal-600">
-                链接已复制，发给朋友一起看。
+                链接已复制，发到群里就可以一起选啦。
               </p>
             ) : null}
           </div>
@@ -365,6 +443,11 @@ export default function RoomPage() {
           <div>
             <p className="mb-3 text-sm font-black text-slate-700">
               实时成员 · 已加入 {members.length} 人
+            </p>
+            <p className="mb-3 text-sm font-bold leading-6 text-slate-500">
+              {members.length <= 1
+                ? "你可以先自己滑，也可以邀请朋友一起 Match。"
+                : "朋友已加入，可以开始一起滑啦。"}
             </p>
             <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
               {members.map((member, index) => (
@@ -390,13 +473,7 @@ export default function RoomPage() {
           <button
             type="button"
             disabled={!currentMember}
-            onClick={() =>
-              router.push(
-                room.status === "decided"
-                  ? `/final?roomId=${room.id}`
-                  : `/swipe?roomId=${room.id}`
-              )
-            }
+            onClick={handleStartSwiping}
             className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-teal-500 text-base font-black text-white shadow-lg shadow-teal-500/25 transition enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
           >
             <Play size={21} className="fill-white" />

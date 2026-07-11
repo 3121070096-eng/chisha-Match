@@ -12,7 +12,7 @@ import { getDemoRestaurants } from "@/lib/restaurantSource";
 import type { MatchRecord, Room, RoomMember, SwipeDecision, SwipeRecord } from "@/types";
 import { motion } from "framer-motion";
 import { PartyPopper, Plus, Trophy } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type DemoView = "swipe" | "matches" | "final";
@@ -124,6 +124,22 @@ export default function DemoPage() {
   const [finalRestaurantId, setFinalRestaurantId] = useState<string | null>(null);
   const [shownMatchIds, setShownMatchIds] = useState<string[]>([]);
   const [popup, setPopup] = useState<MatchRecord | null>(null);
+  const finishedRef = useRef(false);
+
+  useEffect(() => {
+    void trackEvent({ eventName: "demo_started" });
+  }, []);
+
+  useEffect(() => {
+    if (view !== "final" || finishedRef.current) return;
+    finishedRef.current = true;
+    void trackEvent({ eventName: "demo_finished" });
+  }, [view]);
+
+  function startRealRoom(entry: string) {
+    void trackEvent({ eventName: "demo_to_real_room_clicked", metadata: { entry } });
+    router.push("/create");
+  }
 
   const swipeState = useMemo(() => {
     const userSwipes = swipes.filter((swipe) => swipe.memberId === demoMembers[0].id);
@@ -223,6 +239,7 @@ export default function DemoPage() {
     setFinalRestaurantId(null);
     setShownMatchIds([]);
     setPopup(null);
+    finishedRef.current = false;
     setView("swipe");
   }
 
@@ -233,7 +250,7 @@ export default function DemoPage() {
       rightSlot={
         <button
           type="button"
-          onClick={() => router.push("/create")}
+          onClick={() => startRealRoom("demo_header")}
           className="rounded-full bg-white px-3 py-2 text-xs font-black text-teal-700 shadow-sm ring-1 ring-teal-900/5"
         >
           创建真实饭局
@@ -250,6 +267,7 @@ export default function DemoPage() {
             totalRestaurants={demoRestaurants.length}
             onDecision={handleDecision}
             onViewMatches={() => setView("matches")}
+            tutorialMode="demo"
           />
         ) : null}
 
@@ -262,6 +280,7 @@ export default function DemoPage() {
                 cuisinePreference: demoRoom.cuisines[0],
                 budget: demoRoom.budget
               }}
+              memberCount={demoMembers.length}
               onChooseFinal={(restaurantId) => {
                 const item = matchItems.find((matchItem) => matchItem.restaurant.id === restaurantId);
                 void trackEvent({
@@ -293,7 +312,7 @@ export default function DemoPage() {
                   className="safe-bottom mt-4 space-y-3"
                 >
                   <p className="rounded-lg bg-white/88 px-4 py-3 text-center text-sm font-black text-slate-600 shadow-sm ring-1 ring-teal-900/5">
-                    把结果发给朋友，别再纠结啦。
+                    想和朋友真的试一次？创建饭局后，把链接发给大家一起滑。
                   </p>
                   <button
                     type="button"
@@ -305,7 +324,7 @@ export default function DemoPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => router.push("/create")}
+                    onClick={() => startRealRoom("demo_final")}
                     className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-base font-black text-slate-800 shadow-sm ring-1 ring-teal-900/10"
                   >
                     <Plus size={18} />
@@ -334,6 +353,10 @@ export default function DemoPage() {
         onContinue={() => setPopup(null)}
         onViewMatches={() => {
           setPopup(null);
+          void trackEvent({
+            eventName: "match_list_cta_clicked",
+            metadata: { entry: "demo_match_modal", mode: "demo" }
+          });
           setView("matches");
         }}
       />
