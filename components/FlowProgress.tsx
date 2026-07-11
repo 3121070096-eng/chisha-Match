@@ -24,9 +24,9 @@ export function FlowProgress({ stage, className = "" }: FlowProgressProps) {
   }
 
   return (
-    <p className={`inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-xs font-black text-slate-500 shadow-sm ring-1 ring-teal-900/5 ${className}`}>
+    <p className={`inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-black !text-black shadow-sm ring-1 ring-black/10 ${className}`}>
       {labels[stage]}
-      <ChevronRight size={13} className="text-teal-500" />
+      <ChevronRight size={13} className="!text-black" />
     </p>
   );
 }

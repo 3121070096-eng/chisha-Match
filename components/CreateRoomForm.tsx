@@ -284,7 +284,7 @@ export function CreateRoomForm({
           <p className="mt-3 text-sm font-semibold leading-6 text-slate-300">
             选好地点后，你和朋友会看到同一批附近餐厅。
           </p>
-          <FlowProgress stage="create" className="mt-4 bg-white/12 text-teal-100 shadow-none ring-white/10" />
+          <FlowProgress stage="create" className="mt-4" />
         </div>
 
         <label className="block text-sm font-black text-slate-700">

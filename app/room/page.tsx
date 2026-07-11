@@ -394,7 +394,7 @@ export default function RoomPage() {
             </div>
             <FlowProgress
               stage={room.status === "decided" ? "decided" : "room"}
-              className="mt-4 bg-white/14 text-teal-50 shadow-none ring-white/10"
+              className="mt-4"
             />
           </div>
 
