@@ -19,6 +19,7 @@ export type Room = {
   id: string;
   databaseId?: string;
   code?: string;
+  shareToken?: string | null;
   name: string;
   location: string;
   locationMeta?: RoomLocation;

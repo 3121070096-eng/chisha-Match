@@ -8,6 +8,7 @@ import { getRestaurantFallbackType } from "@/lib/restaurantImages";
 
 export type AnalyticsEventName =
   | "room_created"
+  | "public_beta_home_viewed"
   | "homepage_viewed"
   | "create_room_cta_clicked"
   | "demo_cta_clicked"
@@ -68,6 +69,14 @@ export type AnalyticsEventName =
   | "demo_started"
   | "demo_finished"
   | "demo_to_real_room_clicked"
+  | "privacy_page_viewed"
+  | "about_page_viewed"
+  | "room_not_found"
+  | "invalid_room_token"
+  | "restaurant_pool_load_failed"
+  | "supabase_connection_failed"
+  | "debug_page_viewed"
+  | "debug_page_auth_failed"
   | "amap_opened";
 
 export type TrackEventInput = {

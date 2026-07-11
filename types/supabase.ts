@@ -25,6 +25,7 @@ export type Database = {
           location_lng: number | null;
           location_radius_m: number | null;
           location_source: string | null;
+          share_token: string | null;
           created_at: string;
         };
         Insert: {
@@ -42,6 +43,7 @@ export type Database = {
           location_lng?: number | null;
           location_radius_m?: number | null;
           location_source?: string | null;
+          share_token?: string | null;
           created_at?: string;
         };
         Update: {
@@ -59,6 +61,7 @@ export type Database = {
           location_lng?: number | null;
           location_radius_m?: number | null;
           location_source?: string | null;
+          share_token?: string | null;
           created_at?: string;
         };
         Relationships: [];

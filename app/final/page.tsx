@@ -14,17 +14,22 @@ import {
   getRestaurantSourceForRoom,
   type RestaurantSourceResult
 } from "@/lib/restaurantSource";
+import { getRoomAccessFromUrl, getRoomHref } from "@/lib/roomUrl";
 import { copyToClipboard, getRoomInviteLink } from "@/lib/share";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
 import {
   clearRoomMemberSession,
   getCurrentUser,
+  getRoomAccessToken,
   getRoomMemberSession,
   saveCurrentUser,
+  saveRoomAccessToken,
   saveRoomMemberSession
 } from "@/lib/storage";
 import {
   createSupabaseRoom,
+  InvalidRoomTokenError,
+  loadSupabaseRoomPreview,
   loadSupabaseRoomStateForMember,
   subscribeToSupabaseRoom
 } from "@/lib/supabaseRooms";
@@ -37,13 +42,9 @@ import type {
   SwipeState
 } from "@/types";
 import { Copy, Home, Link as LinkIcon, MapPinned, Plus, Trophy } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-
-function getRoomIdFromUrl() {
-  if (typeof window === "undefined") return "";
-  return new URLSearchParams(window.location.search).get("roomId") ?? "";
-}
 
 function markOnce(key: string) {
   if (typeof window === "undefined") return false;
@@ -61,6 +62,8 @@ export default function FinalPage() {
   const [roomCode, setRoomCode] = useState("");
   const [joinRequired, setJoinRequired] = useState(false);
   const [missingRoom, setMissingRoom] = useState(false);
+  const [invalidToken, setInvalidToken] = useState(false);
+  const [connectionFailed, setConnectionFailed] = useState(false);
   const [error, setError] = useState("");
   const [shareCopied, setShareCopied] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
@@ -70,7 +73,11 @@ export default function FinalPage() {
     code: string,
     memberSession: RoomMemberSession
   ) => {
-    const remoteState = await loadSupabaseRoomStateForMember(code, memberSession);
+    const remoteState = await loadSupabaseRoomStateForMember(
+      code,
+      memberSession,
+      getRoomAccessToken(code)
+    );
     setRoom(remoteState.room);
     setState(remoteState.swipeState);
     try {
@@ -82,12 +89,14 @@ export default function FinalPage() {
   }, []);
 
   useEffect(() => {
-    const roomId = getRoomIdFromUrl();
+    const { roomId, token: urlToken } = getRoomAccessFromUrl();
     let unsubscribe: (() => void) | undefined;
     let mounted = true;
 
     async function loadRoom() {
       setRoomCode(roomId);
+
+      if (urlToken) saveRoomAccessToken(roomId, urlToken);
 
       if (!roomId) {
         setMissingRoom(true);
@@ -97,7 +106,24 @@ export default function FinalPage() {
       const memberSession = getRoomMemberSession(roomId);
 
       if (!memberSession) {
-        setJoinRequired(true);
+        try {
+          const preview = await loadSupabaseRoomPreview(roomId, getRoomAccessToken(roomId));
+          if (!preview) {
+            void trackEvent({ roomId, eventName: "room_not_found", metadata: { entry: "final" } });
+            setMissingRoom(true);
+            return;
+          }
+          setJoinRequired(true);
+        } catch (previewError) {
+          console.error("[Final] validate invite link failed", previewError);
+          if (previewError instanceof InvalidRoomTokenError) {
+            void trackEvent({ roomId, eventName: "invalid_room_token", metadata: { entry: "final" } });
+            setInvalidToken(true);
+            return;
+          }
+          void trackEvent({ roomId, eventName: "supabase_connection_failed", metadata: { entry: "final" } });
+          setConnectionFailed(true);
+        }
         return;
       }
 
@@ -118,6 +144,16 @@ export default function FinalPage() {
       } catch (loadError) {
         if (!mounted) return;
         console.error("[Final] load final result failed", loadError);
+        if (loadError instanceof InvalidRoomTokenError) {
+          void trackEvent({ roomId, eventName: "invalid_room_token", metadata: { entry: "final" } });
+          setInvalidToken(true);
+          return;
+        }
+        void trackEvent({
+          roomId,
+          eventName: "supabase_connection_failed",
+          metadata: { entry: "final" }
+        });
         const message =
           loadError instanceof Error ? loadError.message : String(loadError);
         if (message.includes("本地成员记录")) {
@@ -127,7 +163,7 @@ export default function FinalPage() {
           return;
         }
         setError(getReadableSupabaseError(loadError, "加载最终结果失败"));
-        setMissingRoom(true);
+        setConnectionFailed(true);
       }
     }
 
@@ -156,6 +192,11 @@ export default function FinalPage() {
         if (!mounted) return;
         console.error("[Final] load restaurant source failed", restaurantError);
         setError("餐厅候选同步失败，请稍后重试。");
+        void trackEvent({
+          roomId: activeRoom.id,
+          eventName: "restaurant_pool_load_failed",
+          metadata: { entry: "final" }
+        });
       }
     }
 
@@ -205,7 +246,10 @@ export default function FinalPage() {
     [decisionVotes]
   );
   const amapUrl = finalItem ? getAmapNavigationUrl(finalItem.restaurant) : null;
-  const inviteLink = useMemo(() => getRoomInviteLink(room?.id ?? ""), [room?.id]);
+  const inviteLink = useMemo(
+    () => getRoomInviteLink(room?.id ?? "", room?.shareToken),
+    [room?.id, room?.shareToken]
+  );
 
   useEffect(() => {
     if (!room || !finalItem) return;
@@ -311,6 +355,7 @@ export default function FinalPage() {
       const { room: nextRoom, member } = await createSupabaseRoom(input, user);
       const poolResult = await prepareRestaurantPoolForRoom(nextRoom, input.locationMeta);
       saveRoomMemberSession(nextRoom.id, member, user.id);
+      saveRoomAccessToken(nextRoom.id, nextRoom.shareToken);
       void trackEvent({
         roomId: nextRoom.id,
         memberId: member.id,
@@ -325,7 +370,7 @@ export default function FinalPage() {
           restaurant_source: poolResult.source
         }
       });
-      router.push(`/room?roomId=${nextRoom.id}`);
+      router.push(getRoomHref("/room", nextRoom.id, nextRoom.shareToken));
     } catch (recreateError) {
       console.error("[Final] recreate room failed", recreateError);
       setError(getReadableSupabaseError(recreateError, "再开一局失败"));
@@ -347,6 +392,36 @@ export default function FinalPage() {
       cuisines: room.cuisines.join(",")
     });
     router.push(`/create?${params.toString()}`);
+  }
+
+  if (invalidToken) {
+    return (
+      <AppChrome showBack title="今晚就吃这家">
+        <EmptyState
+          icon={Home}
+          title="这个饭局链接可能不完整"
+          description="请让朋友重新发你一次邀请链接。"
+          primaryLabel="返回首页"
+          onPrimary={() => router.push("/")}
+        />
+      </AppChrome>
+    );
+  }
+
+  if (connectionFailed) {
+    return (
+      <AppChrome showBack title="今晚就吃这家">
+        <EmptyState
+          icon={Home}
+          title="连接有点不稳定"
+          description="请刷新页面重试。"
+          primaryLabel="刷新页面"
+          onPrimary={() => window.location.reload()}
+          secondaryLabel="返回首页"
+          onSecondary={() => router.push("/")}
+        />
+      </AppChrome>
+    );
   }
 
   if (missingRoom) {
@@ -373,7 +448,7 @@ export default function FinalPage() {
           title="先加入这个饭局"
           description={error || "输入昵称成为房间成员后，就能查看最终餐厅结果。"}
           primaryLabel="去房间加入"
-          onPrimary={() => router.push(`/room?roomId=${roomCode}`)}
+          onPrimary={() => router.push(getRoomHref("/room", roomCode))}
           secondaryLabel="回到首页"
           onSecondary={() => router.push("/")}
         />
@@ -461,6 +536,9 @@ export default function FinalPage() {
               >
                 换个地点再开一局
               </button>
+              <Link href="/privacy" className="block text-center text-xs font-black text-slate-400">
+                隐私与数据说明
+              </Link>
             </div>
           </>
         ) : (
@@ -469,9 +547,9 @@ export default function FinalPage() {
             title="还没拍板"
             description="从共同心动餐厅榜里点「就吃这家」，结果页就会亮起来。"
             primaryLabel="去榜单选择"
-            onPrimary={() => router.push(`/matches?roomId=${room.id}`)}
+            onPrimary={() => router.push(getRoomHref("/matches", room.id, room.shareToken))}
             secondaryLabel="继续滑卡"
-            onSecondary={() => router.push(`/swipe?roomId=${room.id}`)}
+            onSecondary={() => router.push(getRoomHref("/swipe", room.id, room.shareToken))}
           />
         )}
       </section>

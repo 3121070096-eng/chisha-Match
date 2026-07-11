@@ -1,6 +1,7 @@
 "use client";
 
 import { ListChecks, Trophy, Utensils } from "lucide-react";
+import { getRoomHref } from "@/lib/roomUrl";
 import { useRouter } from "next/navigation";
 
 type BottomNavProps = {
@@ -15,19 +16,19 @@ export function BottomNav({ roomId, active }: BottomNavProps) {
       key: "swipe",
       label: "选择",
       icon: Utensils,
-      href: `/swipe?roomId=${roomId}`
+      href: getRoomHref("/swipe", roomId)
     },
     {
       key: "matches",
       label: "清单",
       icon: ListChecks,
-      href: `/matches?roomId=${roomId}`
+      href: getRoomHref("/matches", roomId)
     },
     {
       key: "final",
       label: "结果",
       icon: Trophy,
-      href: `/final?roomId=${roomId}`
+      href: getRoomHref("/final", roomId)
     }
   ] as const;
 

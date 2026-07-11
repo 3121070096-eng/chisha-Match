@@ -5,8 +5,14 @@ import { CreateRoomForm } from "@/components/CreateRoomForm";
 import { getRestaurantAreaKey } from "@/data/restaurants";
 import { trackEvent } from "@/lib/analytics";
 import { prepareRestaurantPoolForRoom } from "@/lib/restaurantSource";
+import { getRoomHref } from "@/lib/roomUrl";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
-import { getCurrentUser, saveCurrentUser, saveRoomMemberSession } from "@/lib/storage";
+import {
+  getCurrentUser,
+  saveCurrentUser,
+  saveRoomAccessToken,
+  saveRoomMemberSession
+} from "@/lib/storage";
 import { createSupabaseRoom } from "@/lib/supabaseRooms";
 import type { CreateRoomInput } from "@/types";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -63,6 +69,7 @@ function CreateRoomContent() {
         input.locationMeta
       );
       saveRoomMemberSession(room.id, member, user.id);
+      saveRoomAccessToken(room.id, room.shareToken);
       void trackEvent({
         roomId: room.id,
         memberId: member.id,
@@ -81,7 +88,7 @@ function CreateRoomContent() {
           restaurant_api_reason: restaurantApiResult.reason
         }
       });
-      router.push(`/room?roomId=${room.id}`);
+      router.push(getRoomHref("/room", room.id, room.shareToken));
     } catch (createError) {
       console.error("[CreateRoom] create room failed", createError);
       setError(getReadableSupabaseError(createError, "创建饭局失败"));

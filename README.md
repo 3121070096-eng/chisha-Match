@@ -4,7 +4,7 @@
 
 ## 项目简介
 
-这个 Beta 版本已经接入 Supabase，支持真实多人房间、成员加入、滑卡记录、共同心动餐厅榜和最终餐厅选择。V3.0 增加了高德 Web 服务 API Spike；V3.1 增强高德餐厅图片获取和同源代理；V3.2 增加真实定位、地点搜索和热门地点创建饭局；V3.3 新增餐厅质量处理层；V3.4 把 Match 后的榜单升级为可投票、可推荐、可随机拍板的决策面板；V3.5 增加结果分享与饭局复用；V3.6 聚焦新手引导与首次使用完成率。
+这个 Public Beta 已接入 Supabase，支持真实多人房间、成员加入、滑卡记录、共同心动餐厅榜和最终餐厅选择。V3.0 增加高德 Web 服务 API Spike；V3.4 加入决策面板；V3.5 增加结果分享与饭局复用；V3.6 聚焦新手引导；V4.0 进入公开测试与产品化阶段。
 
 ## 核心功能
 
@@ -170,6 +170,19 @@ V3.6 新增事件：`homepage_viewed`、`create_room_cta_clicked`、`demo_cta_cl
 
 真实用户测试建议：观察用户是否能在不解释的情况下创建饭局、是否知道复制链接邀请朋友、是否理解左右滑与 Match、能否完成最终决定，以及是否愿意把结果发到群里。
 
+## V4.0 公开 Beta 与产品化
+
+V4.0 的定位是「公开 Beta 与产品化版」：不再堆叠复杂业务，而是让项目可以安全地邀请真实用户测试、展示产品完整度，并持续观察体验卡点。
+
+- 新房间生成轻量 `share_token`，邀请链接会携带 token；旧房间保持兼容。它是 Public Beta 的轻量访问控制，不等同于正式登录或完整权限系统。
+- 新增渐进式 RLS 策略：禁止 anon 删除 rooms / members，已决定房间不再允许写入 swipes 或二轮投票；feedback 与 events 仅保留写入；餐厅缓存写入继续由 server route 使用 service role 完成。
+- 已决定房间会优先进入最终结果，历史榜单可查看但不会再鼓励滑卡或投票。
+- 新增 `/admin-lite` 与兼容路径 `/debug`。页面由 `ENABLE_DEBUG_PAGE=true` 和服务端 `DEBUG_ADMIN_PASSWORD` 共同保护，展示聚合统计、最新反馈和事件名称，不展示 key 或原始事件 metadata。
+- 新增 `/privacy` 隐私说明页与 `/about` 作品展示页；首页升级为 Public Beta 产品入口，包含产品示意卡、三步玩法、场景标签、About 与隐私入口。
+- 补充房间不存在、token 无效、餐厅池失败、Supabase 连接失败等友好兜底状态。
+
+V4.0 新增事件：`public_beta_home_viewed`、`privacy_page_viewed`、`about_page_viewed`、`room_not_found`、`invalid_room_token`、`restaurant_pool_load_failed`、`supabase_connection_failed`、`debug_page_viewed`、`debug_page_auth_failed`。
+
 ## 技术栈
 
 - Next.js App Router
@@ -248,11 +261,13 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 AMAP_API_KEY=
 AMAP_SECURITY_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+ENABLE_DEBUG_PAGE=
+DEBUG_ADMIN_PASSWORD=
 ```
 
 `.env.example` 只保留变量名，不包含真实 key。`.gitignore` 已忽略 `.env.local`、`.env.*`、`.next`、`node_modules`、`.vercel` 等文件。
 
-`AMAP_API_KEY`、`AMAP_SECURITY_KEY` 和 `SUPABASE_SERVICE_ROLE_KEY` 都是服务端变量，不要加 `NEXT_PUBLIC_`。
+`AMAP_API_KEY`、`AMAP_SECURITY_KEY`、`SUPABASE_SERVICE_ROLE_KEY` 和 `DEBUG_ADMIN_PASSWORD` 都是服务端变量，不要加 `NEXT_PUBLIC_`，更不要提交 `.env.local` 或把真实值写进 README。`ENABLE_DEBUG_PAGE` 仅在需要内部测试后台时设为 `true`。
 
 ## 本地运行
 
@@ -287,12 +302,14 @@ npm run build
 5. `AMAP_API_KEY`、`AMAP_SECURITY_KEY` 和 `SUPABASE_SERVICE_ROLE_KEY` 不要使用 `NEXT_PUBLIC_`。添加或修改环境变量后，必须重新部署项目，线上页面和 server route 才会拿到新的配置。
 6. 在 Supabase SQL Editor 执行 `supabase/schema.sql`。
 7. 如果之前执行过旧版 schema 且保留了旧数据，再执行 `supabase/migrate-v2-constraints.sql`。
-8. 执行 V2.4/V3 migration：
+8. 按以下顺序执行 V2.4/V3/V4 migration：
    - `supabase/migrate-v24-feedback-events.sql`
    - `supabase/migrate-v30-restaurant-source.sql`
    - `supabase/migrate-v30-restaurant-cache.sql`
    - `supabase/migrate-v32-room-location.sql`
    - `supabase/migrate-v34-decision-votes.sql`
+   - `supabase/migrate-v40-room-token.sql`
+   - `supabase/migrate-v40-security-beta.sql`
 9. 部署完成后，打开线上地址测试创建房间和邀请链接。
 
 不要把 Supabase URL 或 anon key 硬编码到代码、README 或配置文件中。
@@ -320,12 +337,15 @@ npm run build
 16. 在最终结果页提交一次体验反馈。
 17. 可打开隐藏页 `/debug` 查看 feedback 和 events 是否写入成功。
 
+Public Beta 建议找 3-5 组朋友完成一次真实流程：创建饭局、复制邀请链接、两人滑同一家餐厅、查看 Match、最终决定并分享结果。重点观察是否能顺畅完成创建与邀请，是否理解左右滑和 Match，并结合 feedback 与 Admin Lite 中的事件判断卡点。
+
 ## 当前版本限制
 
 - 高德 API 仍可能缺失价格、评分、图片或完整品类；V3.3 会清洗、排序并用体验版本地数据补足，但不代表真实平台评价或价格。
 - 未配置 `AMAP_API_KEY` 或缓存写入失败时，餐厅仍为本地 mock 数据，按地点拆分为多个体验版餐厅池。
 - 暂未做正式登录，成员身份由 localStorage 模拟。
 - Demo RLS 权限较开放，不适合直接作为正式生产权限策略。
+- V4.0 的 share token 是轻量访问控制，不是完整登录系统；正式上线前需要 Supabase Auth、成员级权限和服务端签名访问。
 - 地点解析和周边搜索已经接入高德 Web 服务，但暂未接入复杂地图 UI 或正式推荐算法。
 - 高德图片字段不一定稳定，当前会按菜系使用本地 fallback 图片兜底。
 - 模拟食评不是高德真实评论，仅用于体验。

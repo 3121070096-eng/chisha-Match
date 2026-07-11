@@ -5,19 +5,23 @@ import { EmptyState } from "@/components/EmptyState";
 import { FlowProgress } from "@/components/FlowProgress";
 import { getRestaurantAreaKey, getRestaurantAreaLabel } from "@/data/restaurants";
 import { trackEvent } from "@/lib/analytics";
+import { getRoomAccessFromUrl, getRoomHref } from "@/lib/roomUrl";
 import { copyToClipboard, getRoomInviteLink } from "@/lib/share";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
 import {
   clearRoomMemberSession,
   getCurrentUser,
+  getRoomAccessToken,
   getRoomMemberSession,
   saveCurrentUser,
+  saveRoomAccessToken,
   saveRoomMemberSession
 } from "@/lib/storage";
 import {
   loadSupabaseRoomPreview,
   loadSupabaseRoomState,
   loadSupabaseRoomStateForMember,
+  InvalidRoomTokenError,
   subscribeToSupabaseRoom
 } from "@/lib/supabaseRooms";
 import type { Room, RoomMember, RoomMemberSession } from "@/types";
@@ -37,11 +41,6 @@ import {
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
-function getRoomIdFromUrl() {
-  if (typeof window === "undefined") return "";
-  return new URLSearchParams(window.location.search).get("roomId") ?? "";
-}
-
 function markOnce(key: string) {
   if (typeof window === "undefined") return false;
   if (window.localStorage.getItem(key)) return false;
@@ -59,11 +58,17 @@ export default function RoomPage() {
   const [copied, setCopied] = useState(false);
   const [joinedNotice, setJoinedNotice] = useState(false);
   const [missingRoom, setMissingRoom] = useState(false);
+  const [invalidToken, setInvalidToken] = useState(false);
+  const [connectionFailed, setConnectionFailed] = useState(false);
   const [error, setError] = useState("");
 
   const refreshRoomForMember = useCallback(
     async (code: string, memberSession: RoomMemberSession) => {
-      const state = await loadSupabaseRoomStateForMember(code, memberSession);
+      const state = await loadSupabaseRoomStateForMember(
+        code,
+        memberSession,
+        getRoomAccessToken(code)
+      );
       setRoom(state.room);
       setMembers(state.members);
       setCurrentMember(state.currentMember);
@@ -73,11 +78,14 @@ export default function RoomPage() {
   );
 
   useEffect(() => {
-    const roomId = getRoomIdFromUrl();
+    const { roomId, token: urlToken } = getRoomAccessFromUrl();
     let mounted = true;
 
     async function loadRoom() {
       setRoomCode(roomId);
+
+      if (urlToken) saveRoomAccessToken(roomId, urlToken);
+      const accessToken = urlToken ?? getRoomAccessToken(roomId);
 
       if (!roomId) {
         setMissingRoom(true);
@@ -104,11 +112,12 @@ export default function RoomPage() {
           }
         }
 
-        const preview = await loadSupabaseRoomPreview(roomId);
+        const preview = await loadSupabaseRoomPreview(roomId, accessToken);
 
         if (!mounted) return;
 
         if (!preview) {
+          void trackEvent({ roomId, eventName: "room_not_found" });
           setMissingRoom(true);
           return;
         }
@@ -119,8 +128,18 @@ export default function RoomPage() {
       } catch (loadError) {
         if (!mounted) return;
         console.error("[Room] load room failed", loadError);
+        if (loadError instanceof InvalidRoomTokenError) {
+          void trackEvent({ roomId, eventName: "invalid_room_token" });
+          setInvalidToken(true);
+          return;
+        }
+        void trackEvent({
+          roomId,
+          eventName: "supabase_connection_failed",
+          metadata: { entry: "room" }
+        });
         setError(getReadableSupabaseError(loadError, "加载房间失败"));
-        setMissingRoom(true);
+        setConnectionFailed(true);
       }
     }
 
@@ -145,7 +164,7 @@ export default function RoomPage() {
             return;
           }
 
-          const preview = await loadSupabaseRoomPreview(roomCode);
+          const preview = await loadSupabaseRoomPreview(roomCode, getRoomAccessToken(roomCode));
           if (preview) {
             setRoom(preview.room);
             setMembers(preview.members);
@@ -159,7 +178,7 @@ export default function RoomPage() {
     return unsubscribe;
   }, [refreshRoomForMember, room?.databaseId, roomCode]);
 
-  const inviteLink = getRoomInviteLink(room?.id ?? "");
+  const inviteLink = getRoomInviteLink(room?.id ?? "", room?.shareToken);
 
   useEffect(() => {
     if (!room || !currentMember || room.status !== "decided") return;
@@ -172,7 +191,7 @@ export default function RoomPage() {
         metadata: { restaurant_id: room.finalRestaurantId }
       });
     }
-    router.replace(`/final?roomId=${room.id}`);
+    router.replace(getRoomHref("/final", room.id, room.shareToken));
   }, [currentMember, room, router]);
 
   useEffect(() => {
@@ -211,7 +230,11 @@ export default function RoomPage() {
 
     try {
       const saved = saveCurrentUser(nickname);
-      const state = await loadSupabaseRoomState(room.id, saved);
+      const state = await loadSupabaseRoomState(
+        room.id,
+        saved,
+        getRoomAccessToken(room.id)
+      );
       saveRoomMemberSession(state.room.id, state.currentMember, saved.id);
       setRoom(state.room);
       setMembers(state.members);
@@ -275,8 +298,38 @@ export default function RoomPage() {
     });
     router.push(
       room.status === "decided"
-        ? `/final?roomId=${room.id}`
-        : `/swipe?roomId=${room.id}`
+        ? getRoomHref("/final", room.id, room.shareToken)
+        : getRoomHref("/swipe", room.id, room.shareToken)
+    );
+  }
+
+  if (invalidToken) {
+    return (
+      <AppChrome showBack title="饭局房间">
+        <EmptyState
+          icon={LinkIcon}
+          title="这个饭局链接可能不完整"
+          description="请让朋友重新发你一次邀请链接。"
+          primaryLabel="返回首页"
+          onPrimary={() => router.push("/")}
+        />
+      </AppChrome>
+    );
+  }
+
+  if (connectionFailed) {
+    return (
+      <AppChrome showBack title="饭局房间">
+        <EmptyState
+          icon={Sparkles}
+          title="连接有点不稳定"
+          description="请刷新页面重试。"
+          primaryLabel="刷新页面"
+          onPrimary={() => window.location.reload()}
+          secondaryLabel="返回首页"
+          onSecondary={() => router.push("/")}
+        />
+      </AppChrome>
     );
   }
 
@@ -285,9 +338,9 @@ export default function RoomPage() {
       <AppChrome showBack title="饭局房间">
         <EmptyState
           icon={Home}
-          title="没有找到这个饭局"
-          description={error || "请检查邀请码，或者重新创建一个饭局房间。"}
-          primaryLabel="创建饭局"
+          title="这个饭局好像不存在"
+          description={error || "可能是链接错误，或者房间已经失效。"}
+          primaryLabel="重新创建饭局"
           onPrimary={() => router.push("/create")}
           secondaryLabel="回到首页"
           onSecondary={() => router.push("/")}

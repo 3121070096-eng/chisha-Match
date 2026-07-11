@@ -3,7 +3,7 @@
 import { DEFAULT_RADIUS_M, type RoomLocation } from "@/data/locations";
 import { getRestaurantsForLocation } from "@/data/restaurants";
 import { calculateMatchesFromSwipes, sortMatches } from "@/lib/match";
-import { makeRoomId } from "@/lib/mock";
+import { makeRoomId, makeRoomShareToken } from "@/lib/mock";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
   formatSupabaseError,
@@ -52,7 +52,7 @@ function normalizeLocationSource(source?: string | null): RoomLocation["source"]
   return "preset";
 }
 
-function isLocationSchemaMissing(error: unknown) {
+function isRoomSchemaMissing(error: unknown) {
   const message = formatSupabaseError(error);
   return (
     message.includes("location_area_key") ||
@@ -61,6 +61,7 @@ function isLocationSchemaMissing(error: unknown) {
     message.includes("location_lng") ||
     message.includes("location_radius_m") ||
     message.includes("location_source") ||
+    message.includes("share_token") ||
     message.includes("schema cache")
   );
 }
@@ -82,6 +83,7 @@ function mapRoom(row: RoomRow): Room {
     id: row.id,
     databaseId: row.id,
     code: row.id,
+    shareToken: row.share_token ?? null,
     name: row.title,
     location: row.location,
     locationMeta: mapRoomLocation(row),
@@ -154,23 +156,27 @@ function buildSwipeState({
 async function createRoomMember(roomDatabaseId: string, user: CurrentUser) {
   const supabase = getSupabaseClient();
   const memberId = makeRoomMemberId(roomDatabaseId, user.id);
+  const { data: existing, error: existingError } = await supabase
+    .from("room_members")
+    .select("*")
+    .eq("id", memberId)
+    .maybeSingle();
+
+  if (existingError) throwSupabaseError("load existing room member failed", existingError);
+  if (existing) return mapMember(existing);
+
   const { data, error } = await supabase
     .from("room_members")
-    .upsert(
-      {
-        id: memberId,
-        room_id: roomDatabaseId,
-        name: user.nickname,
-        avatar: user.nickname.slice(0, 1) || "饭"
-      },
-      {
-        onConflict: "id"
-      }
-    )
+    .insert({
+      id: memberId,
+      room_id: roomDatabaseId,
+      name: user.nickname,
+      avatar: user.nickname.slice(0, 1) || "饭"
+    })
     .select("*")
     .single();
 
-  if (error) throwSupabaseError("create or update room member failed", error);
+  if (error) throwSupabaseError("create room member failed", error);
   return mapMember(data);
 }
 
@@ -187,6 +193,7 @@ export async function createSupabaseRoom(input: CreateRoomInput, user: CurrentUs
     restaurant_source: "local_pack"
   };
   const locationMeta = input.locationMeta;
+  const shareToken = makeRoomShareToken();
   const roomInsert: RoomInsert = {
     ...baseRoomInsert,
     location_area_key: locationMeta?.areaKey ?? null,
@@ -194,7 +201,8 @@ export async function createSupabaseRoom(input: CreateRoomInput, user: CurrentUs
     location_lat: locationMeta?.lat ?? null,
     location_lng: locationMeta?.lng ?? null,
     location_radius_m: locationMeta?.radiusM ?? DEFAULT_RADIUS_M,
-    location_source: locationMeta?.source ?? null
+    location_source: locationMeta?.source ?? null,
+    share_token: shareToken
   };
   let { data: roomData, error: roomError } = await supabase
     .from("rooms")
@@ -202,9 +210,9 @@ export async function createSupabaseRoom(input: CreateRoomInput, user: CurrentUs
     .select("*")
     .single();
 
-  if (roomError && isLocationSchemaMissing(roomError)) {
+  if (roomError && isRoomSchemaMissing(roomError)) {
     console.warn(
-      "[Supabase] room location columns missing, retrying legacy room insert",
+      "[Supabase] room metadata columns missing, retrying legacy room insert",
       getSupabaseErrorDebugPayload(roomError)
     );
     const legacyResult = await supabase
@@ -236,7 +244,23 @@ export async function createSupabaseRoom(input: CreateRoomInput, user: CurrentUs
   };
 }
 
-export async function getSupabaseRoomByCode(code: string) {
+export class InvalidRoomTokenError extends Error {
+  constructor() {
+    super("这个饭局链接可能不完整，请让朋友重新发你一次邀请链接。");
+    this.name = "InvalidRoomTokenError";
+  }
+}
+
+function assertRoomAccess(room: Room, accessToken?: string | null) {
+  // Rooms created before V4.0 do not have a token and remain available for
+  // compatibility. New rooms require the token embedded in their invite link.
+  if (!room.shareToken) return;
+  if (!accessToken || accessToken !== room.shareToken) {
+    throw new InvalidRoomTokenError();
+  }
+}
+
+export async function getSupabaseRoomByCode(code: string, accessToken?: string | null) {
   const supabase = getSupabaseClient();
   const normalizedCode = normalizeRoomCode(code);
   const { data, error } = await supabase
@@ -246,11 +270,14 @@ export async function getSupabaseRoomByCode(code: string) {
     .maybeSingle();
 
   if (error) throwSupabaseError("get room by id failed", error);
-  return data ? mapRoom(data) : null;
+  if (!data) return null;
+  const room = mapRoom(data);
+  assertRoomAccess(room, accessToken);
+  return room;
 }
 
-export async function loadSupabaseRoomPreview(code: string) {
-  const room = await getSupabaseRoomByCode(code);
+export async function loadSupabaseRoomPreview(code: string, accessToken?: string | null) {
+  const room = await getSupabaseRoomByCode(code, accessToken);
   const supabase = getSupabaseClient();
 
   if (!room?.databaseId) return null;
@@ -269,8 +296,12 @@ export async function loadSupabaseRoomPreview(code: string) {
   };
 }
 
-export async function joinSupabaseRoom(code: string, user: CurrentUser) {
-  const room = await getSupabaseRoomByCode(code);
+export async function joinSupabaseRoom(
+  code: string,
+  user: CurrentUser,
+  accessToken?: string | null
+) {
+  const room = await getSupabaseRoomByCode(code, accessToken);
 
   if (!room?.databaseId) {
     throw new Error("没有找到这个饭局房间");
@@ -312,9 +343,10 @@ async function loadRoomCollections(room: Room) {
 
 export async function loadSupabaseRoomState(
   code: string,
-  user: CurrentUser
+  user: CurrentUser,
+  accessToken?: string | null
 ): Promise<SupabaseRoomState> {
-  const { room, member } = await joinSupabaseRoom(code, user);
+  const { room, member } = await joinSupabaseRoom(code, user, accessToken);
   const { members, swipes } = await loadRoomCollections(room);
 
   return {
@@ -333,9 +365,10 @@ export async function loadSupabaseRoomState(
 
 export async function loadSupabaseRoomStateForMember(
   code: string,
-  memberSession: RoomMemberSession
+  memberSession: RoomMemberSession,
+  accessToken?: string | null
 ): Promise<SupabaseRoomState> {
-  const room = await getSupabaseRoomByCode(code);
+  const room = await getSupabaseRoomByCode(code, accessToken);
 
   if (!room?.databaseId) {
     throw new Error("没有找到这个饭局房间");
@@ -362,17 +395,10 @@ export async function loadSupabaseRoomStateForMember(
   };
 }
 
-async function assertRoomIsOpenForSwiping(roomDatabaseId: string) {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from("rooms")
-    .select("status")
-    .eq("id", roomDatabaseId)
-    .maybeSingle();
-
-  if (error) throwSupabaseError("check room status before swipe failed", error);
-  if (!data) throw new Error("没有找到这个饭局房间");
-  if (data.status === "decided") {
+async function assertRoomIsOpenForSwiping(roomDatabaseId: string, accessToken?: string | null) {
+  const room = await getSupabaseRoomByCode(roomDatabaseId, accessToken);
+  if (!room) throw new Error("没有找到这个饭局房间");
+  if (room.status === "decided") {
     throw new Error("这局已经决定啦，不能再修改滑卡结果");
   }
 }
@@ -381,15 +407,17 @@ export async function writeSupabaseSwipe({
   roomDatabaseId,
   memberId,
   restaurantId,
-  decision
+  decision,
+  accessToken
 }: {
   roomDatabaseId: string;
   memberId: string;
   restaurantId: string;
   decision: SwipeDecision;
+  accessToken?: string | null;
 }) {
   const supabase = getSupabaseClient();
-  await assertRoomIsOpenForSwiping(roomDatabaseId);
+  await assertRoomIsOpenForSwiping(roomDatabaseId, accessToken);
   const { data, error } = await supabase
     .from("swipes")
     .upsert(
@@ -412,12 +440,15 @@ export async function writeSupabaseSwipe({
 
 export async function clearSupabaseMemberSwipes({
   roomDatabaseId,
-  memberId
+  memberId,
+  accessToken
 }: {
   roomDatabaseId: string;
   memberId: string;
+  accessToken?: string | null;
 }) {
   const supabase = getSupabaseClient();
+  await assertRoomIsOpenForSwiping(roomDatabaseId, accessToken);
   const { error } = await supabase
     .from("swipes")
     .delete()
@@ -429,12 +460,19 @@ export async function clearSupabaseMemberSwipes({
 
 export async function chooseSupabaseFinalRestaurant({
   roomDatabaseId,
-  restaurantId
+  restaurantId,
+  accessToken
 }: {
   roomDatabaseId: string;
   restaurantId: string;
+  accessToken?: string | null;
 }) {
   const supabase = getSupabaseClient();
+  const room = await getSupabaseRoomByCode(roomDatabaseId, accessToken);
+  if (!room) throw new Error("没有找到这个饭局房间");
+  if (room.status === "decided") {
+    throw new Error("这局已经决定啦，不能再修改最终结果");
+  }
   const { data, error } = await supabase
     .from("rooms")
     .update({
@@ -449,8 +487,13 @@ export async function chooseSupabaseFinalRestaurant({
   return mapRoom(data);
 }
 
-export async function clearSupabaseFinalRestaurant(roomDatabaseId: string) {
+export async function clearSupabaseFinalRestaurant(
+  roomDatabaseId: string,
+  accessToken?: string | null
+) {
   const supabase = getSupabaseClient();
+  const room = await getSupabaseRoomByCode(roomDatabaseId, accessToken);
+  if (!room) throw new Error("没有找到这个饭局房间");
   const { data, error } = await supabase
     .from("rooms")
     .update({

@@ -18,10 +18,18 @@ import {
   type RestaurantSourceResult
 } from "@/lib/restaurantSource";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
+import { getRoomAccessFromUrl, getRoomHref } from "@/lib/roomUrl";
 import { copyToClipboard, getRoomInviteLink } from "@/lib/share";
-import { clearRoomMemberSession, getRoomMemberSession } from "@/lib/storage";
+import {
+  clearRoomMemberSession,
+  getRoomAccessToken,
+  getRoomMemberSession,
+  saveRoomAccessToken
+} from "@/lib/storage";
 import {
   chooseSupabaseFinalRestaurant,
+  InvalidRoomTokenError,
+  loadSupabaseRoomPreview,
   loadSupabaseRoomStateForMember,
   subscribeToSupabaseRoom
 } from "@/lib/supabaseRooms";
@@ -29,11 +37,6 @@ import type { DecisionVote, MatchItem, Room, RoomMember, RoomMemberSession, Swip
 import { Copy, Home } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
-function getRoomIdFromUrl() {
-  if (typeof window === "undefined") return "";
-  return new URLSearchParams(window.location.search).get("roomId") ?? "";
-}
 
 function markOnce(key: string) {
   if (typeof window === "undefined") return false;
@@ -53,6 +56,8 @@ export default function MatchesPage() {
   const [roomCode, setRoomCode] = useState("");
   const [joinRequired, setJoinRequired] = useState(false);
   const [missingRoom, setMissingRoom] = useState(false);
+  const [invalidToken, setInvalidToken] = useState(false);
+  const [connectionFailed, setConnectionFailed] = useState(false);
   const [error, setError] = useState("");
   const [voteError, setVoteError] = useState("");
   const [voting, setVoting] = useState(false);
@@ -66,7 +71,11 @@ export default function MatchesPage() {
     code: string,
     memberSession: RoomMemberSession
   ) => {
-    const remoteState = await loadSupabaseRoomStateForMember(code, memberSession);
+    const remoteState = await loadSupabaseRoomStateForMember(
+      code,
+      memberSession,
+      getRoomAccessToken(code)
+    );
     setRoom(remoteState.room);
     setCurrentMember(remoteState.currentMember);
     setMembers(remoteState.members);
@@ -85,12 +94,14 @@ export default function MatchesPage() {
   }, []);
 
   useEffect(() => {
-    const roomId = getRoomIdFromUrl();
+    const { roomId, token: urlToken } = getRoomAccessFromUrl();
     let unsubscribe: (() => void) | undefined;
     let mounted = true;
 
     async function loadRoom() {
       setRoomCode(roomId);
+
+      if (urlToken) saveRoomAccessToken(roomId, urlToken);
 
       if (!roomId) {
         setMissingRoom(true);
@@ -100,7 +111,24 @@ export default function MatchesPage() {
       const memberSession = getRoomMemberSession(roomId);
 
       if (!memberSession) {
-        setJoinRequired(true);
+        try {
+          const preview = await loadSupabaseRoomPreview(roomId, getRoomAccessToken(roomId));
+          if (!preview) {
+            void trackEvent({ roomId, eventName: "room_not_found", metadata: { entry: "matches" } });
+            setMissingRoom(true);
+            return;
+          }
+          setJoinRequired(true);
+        } catch (previewError) {
+          console.error("[Matches] validate invite link failed", previewError);
+          if (previewError instanceof InvalidRoomTokenError) {
+            void trackEvent({ roomId, eventName: "invalid_room_token", metadata: { entry: "matches" } });
+            setInvalidToken(true);
+            return;
+          }
+          void trackEvent({ roomId, eventName: "supabase_connection_failed", metadata: { entry: "matches" } });
+          setConnectionFailed(true);
+        }
         return;
       }
 
@@ -123,6 +151,16 @@ export default function MatchesPage() {
       } catch (loadError) {
         if (!mounted) return;
         console.error("[Matches] load matches failed", loadError);
+        if (loadError instanceof InvalidRoomTokenError) {
+          void trackEvent({ roomId, eventName: "invalid_room_token", metadata: { entry: "matches" } });
+          setInvalidToken(true);
+          return;
+        }
+        void trackEvent({
+          roomId,
+          eventName: "supabase_connection_failed",
+          metadata: { entry: "matches" }
+        });
         const message =
           loadError instanceof Error ? loadError.message : String(loadError);
         if (message.includes("本地成员记录")) {
@@ -132,7 +170,7 @@ export default function MatchesPage() {
           return;
         }
         setError(getReadableSupabaseError(loadError, "加载匹配清单失败"));
-        setMissingRoom(true);
+        setConnectionFailed(true);
       }
     }
 
@@ -166,6 +204,11 @@ export default function MatchesPage() {
         if (!mounted) return;
         console.error("[Matches] load restaurant source failed", restaurantError);
         setError("餐厅候选同步失败，请稍后重试。");
+        void trackEvent({
+          roomId: activeRoom.id,
+          eventName: "restaurant_pool_load_failed",
+          metadata: { entry: "matches" }
+        });
       }
     }
 
@@ -205,7 +248,10 @@ export default function MatchesPage() {
     [decisionVoteCounts, matchItems, room?.budget, room?.cuisines, room?.location]
   );
   const isDecided = room?.status === "decided" || Boolean(state?.finalRestaurantId);
-  const inviteLink = useMemo(() => getRoomInviteLink(room?.id ?? ""), [room?.id]);
+  const inviteLink = useMemo(
+    () => getRoomInviteLink(room?.id ?? "", room?.shareToken),
+    [room?.id, room?.shareToken]
+  );
 
   useEffect(() => {
     if (!room || !state) return;
@@ -243,7 +289,8 @@ export default function MatchesPage() {
     try {
       const updatedRoom = await chooseSupabaseFinalRestaurant({
         roomDatabaseId: room.databaseId,
-        restaurantId
+        restaurantId,
+        accessToken: room.shareToken ?? getRoomAccessToken(room.id)
       });
       const item = matchItems.find((matchItem) => matchItem.restaurant.id === restaurantId);
       void trackEvent({
@@ -258,7 +305,7 @@ export default function MatchesPage() {
       });
       setRoom(updatedRoom);
       setState({ ...state, finalRestaurantId: restaurantId });
-      router.push(`/final?roomId=${room.id}`);
+      router.push(getRoomHref("/final", room.id, room.shareToken));
     } catch (chooseError) {
       console.error("[Matches] choose final restaurant failed", chooseError);
       setError(getReadableSupabaseError(chooseError, "选择最终餐厅失败"));
@@ -353,6 +400,36 @@ export default function MatchesPage() {
     }
   }
 
+  if (invalidToken) {
+    return (
+      <AppChrome showBack title="共同心动餐厅榜">
+        <EmptyState
+          icon={Home}
+          title="这个饭局链接可能不完整"
+          description="请让朋友重新发你一次邀请链接。"
+          primaryLabel="返回首页"
+          onPrimary={() => router.push("/")}
+        />
+      </AppChrome>
+    );
+  }
+
+  if (connectionFailed) {
+    return (
+      <AppChrome showBack title="共同心动餐厅榜">
+        <EmptyState
+          icon={Home}
+          title="连接有点不稳定"
+          description="请刷新页面重试。"
+          primaryLabel="刷新页面"
+          onPrimary={() => window.location.reload()}
+          secondaryLabel="返回首页"
+          onSecondary={() => router.push("/")}
+        />
+      </AppChrome>
+    );
+  }
+
   if (missingRoom) {
     return (
       <AppChrome showBack title="共同心动餐厅榜">
@@ -377,7 +454,7 @@ export default function MatchesPage() {
           title="先加入这个饭局"
           description={error || "输入昵称成为房间成员后，就能查看共同心动餐厅榜。"}
           primaryLabel="去房间加入"
-          onPrimary={() => router.push(`/room?roomId=${roomCode}`)}
+          onPrimary={() => router.push(getRoomHref("/room", roomCode))}
           secondaryLabel="回到首页"
           onSecondary={() => router.push("/")}
         />
@@ -444,12 +521,12 @@ export default function MatchesPage() {
           decidedRestaurantName={
             matchItems.find((item) => item.restaurant.id === state.finalRestaurantId)?.restaurant.name ?? null
           }
-          onViewResult={() => router.push(`/final?roomId=${room.id}`)}
+          onViewResult={() => router.push(getRoomHref("/final", room.id, room.shareToken))}
           onRestart={() => router.push("/create")}
           memberCount={members.length}
           onInviteFriends={() => void copyInviteLink()}
           onChooseFinal={(restaurantId) => void chooseFinal(restaurantId)}
-          onContinueSwipe={() => router.push(`/swipe?roomId=${room.id}`)}
+          onContinueSwipe={() => router.push(getRoomHref("/swipe", room.id, room.shareToken))}
         />
       </section>
       <BottomNav roomId={room.id} active="matches" />

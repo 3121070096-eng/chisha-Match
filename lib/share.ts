@@ -1,8 +1,10 @@
 "use client";
 
-export function getRoomInviteLink(roomId: string) {
+import { getRoomHref } from "@/lib/roomUrl";
+
+export function getRoomInviteLink(roomId: string, shareToken?: string | null) {
   if (typeof window === "undefined" || !roomId) return "";
-  return `${window.location.origin}/room?roomId=${roomId}`;
+  return `${window.location.origin}${getRoomHref("/room", roomId, shareToken)}`;
 }
 
 export async function copyToClipboard(content: string) {

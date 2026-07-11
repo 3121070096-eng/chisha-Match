@@ -8,6 +8,7 @@ import { SwipeDeck } from "@/components/SwipeDeck";
 import { getRestaurantAreaKey, getRestaurantAreaLabel } from "@/data/restaurants";
 import { trackEvent } from "@/lib/analytics";
 import { findRestaurantInPool } from "@/lib/match";
+import { getRoomAccessFromUrl, getRoomHref } from "@/lib/roomUrl";
 import {
   getRestaurantSourceForRoom,
   type RestaurantSourceResult
@@ -16,12 +17,15 @@ import { getReadableSupabaseError } from "@/lib/supabaseErrors";
 import {
   clearRoomMemberSession,
   getCurrentUser,
+  getRoomAccessToken,
   getRoomMemberSession,
   saveCurrentUser,
+  saveRoomAccessToken,
   saveRoomMemberSession
 } from "@/lib/storage";
 import {
   clearSupabaseMemberSwipes,
+  InvalidRoomTokenError,
   loadSupabaseRoomState,
   loadSupabaseRoomStateForMember,
   loadSupabaseRoomPreview,
@@ -39,11 +43,6 @@ import type {
 import { Home, MapPin, RotateCcw, UserRoundPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-
-function getRoomIdFromUrl() {
-  if (typeof window === "undefined") return "";
-  return new URLSearchParams(window.location.search).get("roomId") ?? "";
-}
 
 type Popup = {
   restaurantId: string;
@@ -69,6 +68,8 @@ export default function SwipePage() {
   const [nickname, setNickname] = useState("");
   const [popup, setPopup] = useState<Popup | null>(null);
   const [missingRoom, setMissingRoom] = useState(false);
+  const [invalidToken, setInvalidToken] = useState(false);
+  const [connectionFailed, setConnectionFailed] = useState(false);
   const [error, setError] = useState("");
   const [restaurantLoadFailed, setRestaurantLoadFailed] = useState(false);
   const [restaurantReloadKey, setRestaurantReloadKey] = useState(0);
@@ -77,7 +78,11 @@ export default function SwipePage() {
     code: string,
     memberSession: RoomMemberSession
   ) => {
-    const remoteState = await loadSupabaseRoomStateForMember(code, memberSession);
+    const remoteState = await loadSupabaseRoomStateForMember(
+      code,
+      memberSession,
+      getRoomAccessToken(code)
+    );
     setRoom(remoteState.room);
     setCurrentMember(remoteState.currentMember);
     setState(remoteState.swipeState);
@@ -85,11 +90,14 @@ export default function SwipePage() {
   }, []);
 
   useEffect(() => {
-    const roomId = getRoomIdFromUrl();
+    const { roomId, token: urlToken } = getRoomAccessFromUrl();
     let mounted = true;
 
     async function loadRoom() {
       setRoomCode(roomId);
+
+      if (urlToken) saveRoomAccessToken(roomId, urlToken);
+      const accessToken = urlToken ?? getRoomAccessToken(roomId);
 
       if (!roomId) {
         setMissingRoom(true);
@@ -104,10 +112,11 @@ export default function SwipePage() {
         const memberSession = getRoomMemberSession(roomId);
 
         if (!memberSession) {
-          const preview = await loadSupabaseRoomPreview(roomId);
+          const preview = await loadSupabaseRoomPreview(roomId, accessToken);
           if (!mounted) return;
 
           if (!preview) {
+            void trackEvent({ roomId, eventName: "room_not_found", metadata: { entry: "swipe" } });
             setMissingRoom(true);
             setBootstrapped(true);
             return;
@@ -131,10 +140,11 @@ export default function SwipePage() {
         } catch (sessionError) {
           console.error("[Supabase] swipe member session failed", sessionError);
           clearRoomMemberSession(roomId);
-          const preview = await loadSupabaseRoomPreview(roomId);
+          const preview = await loadSupabaseRoomPreview(roomId, accessToken);
           if (!mounted) return;
 
           if (!preview) {
+            void trackEvent({ roomId, eventName: "room_not_found", metadata: { entry: "swipe" } });
             setMissingRoom(true);
             setBootstrapped(true);
             return;
@@ -148,8 +158,19 @@ export default function SwipePage() {
       } catch (loadError) {
         if (!mounted) return;
         console.error("[Swipe] load room failed", loadError);
+        if (loadError instanceof InvalidRoomTokenError) {
+          void trackEvent({ roomId, eventName: "invalid_room_token", metadata: { entry: "swipe" } });
+          setInvalidToken(true);
+          setBootstrapped(true);
+          return;
+        }
+        void trackEvent({
+          roomId,
+          eventName: "supabase_connection_failed",
+          metadata: { entry: "swipe" }
+        });
         setError(getReadableSupabaseError(loadError, "加载房间失败"));
-        setMissingRoom(true);
+        setConnectionFailed(true);
         setBootstrapped(true);
       }
     }
@@ -192,7 +213,7 @@ export default function SwipePage() {
         metadata: { restaurant_id: room.finalRestaurantId, entry: "swipe" }
       });
     }
-    router.replace(`/final?roomId=${room.id}`);
+    router.replace(getRoomHref("/final", room.id, room.shareToken));
   }, [currentMember, room, router]);
 
   useEffect(() => {
@@ -213,12 +234,22 @@ export default function SwipePage() {
         if (source.restaurants.length === 0) {
           setRestaurantLoadFailed(true);
           setError("附近餐厅暂时没有加载出来。");
+          void trackEvent({
+            roomId: activeRoom.id,
+            eventName: "restaurant_pool_load_failed",
+            metadata: { reason: "empty_pool" }
+          });
         }
       } catch (restaurantError) {
         if (!mounted) return;
         console.error("[Swipe] load restaurant source failed", restaurantError);
         setRestaurantLoadFailed(true);
         setError("附近餐厅加载失败了。");
+        void trackEvent({
+          roomId: activeRoom.id,
+          eventName: "restaurant_pool_load_failed",
+          metadata: { reason: "load_error" }
+        });
       }
     }
 
@@ -272,12 +303,16 @@ export default function SwipePage() {
 
   async function handleNickname(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const roomId = getRoomIdFromUrl();
+    const { roomId } = getRoomAccessFromUrl();
     setError("");
 
     try {
       const saved = saveCurrentUser(nickname || "饭友");
-      const remoteState = await loadSupabaseRoomState(roomId, saved);
+      const remoteState = await loadSupabaseRoomState(
+        roomId,
+        saved,
+        getRoomAccessToken(roomId)
+      );
       saveRoomMemberSession(remoteState.room.id, remoteState.currentMember, saved.id);
       setRoom(remoteState.room);
       setCurrentMember(remoteState.currentMember);
@@ -305,7 +340,7 @@ export default function SwipePage() {
 
     if (room.status === "decided") {
       setError("这局已经决定啦，不能再修改滑卡结果。");
-      router.replace(`/final?roomId=${room.id}`);
+      router.replace(getRoomHref("/final", room.id, room.shareToken));
       return;
     }
 
@@ -346,7 +381,8 @@ export default function SwipePage() {
         roomDatabaseId: room.databaseId,
         memberId: currentMember.id,
         restaurantId,
-        decision
+        decision,
+        accessToken: room.shareToken ?? getRoomAccessToken(room.id)
       });
 
       const remoteState = await refreshRoomForMember(room.id, memberSession);
@@ -390,7 +426,7 @@ export default function SwipePage() {
 
     if (room.status === "decided") {
       setError("这局已经决定啦，不能再重置选择。");
-      router.replace(`/final?roomId=${room.id}`);
+      router.replace(getRoomHref("/final", room.id, room.shareToken));
       return;
     }
 
@@ -398,7 +434,8 @@ export default function SwipePage() {
       setPopup(null);
       await clearSupabaseMemberSwipes({
         roomDatabaseId: room.databaseId,
-        memberId: currentMember.id
+        memberId: currentMember.id,
+        accessToken: room.shareToken ?? getRoomAccessToken(room.id)
       });
       const memberSession = getRoomMemberSession(room.id);
       if (memberSession) {
@@ -408,6 +445,36 @@ export default function SwipePage() {
       console.error("[Swipe] reset deck failed", resetError);
       setError(getReadableSupabaseError(resetError, "重置失败"));
     }
+  }
+
+  if (invalidToken) {
+    return (
+      <AppChrome showBack title="开始选择">
+        <EmptyState
+          icon={Home}
+          title="这个饭局链接可能不完整"
+          description="请让朋友重新发你一次邀请链接。"
+          primaryLabel="返回首页"
+          onPrimary={() => router.push("/")}
+        />
+      </AppChrome>
+    );
+  }
+
+  if (connectionFailed) {
+    return (
+      <AppChrome showBack title="开始选择">
+        <EmptyState
+          icon={Home}
+          title="连接有点不稳定"
+          description="请刷新页面重试。"
+          primaryLabel="刷新页面"
+          onPrimary={() => window.location.reload()}
+          secondaryLabel="返回首页"
+          onSecondary={() => router.push("/")}
+        />
+      </AppChrome>
+    );
   }
 
   if (missingRoom) {
@@ -548,7 +615,7 @@ export default function SwipePage() {
             eventName: "match_list_cta_clicked",
             metadata: { entry: "swipe_deck" }
           });
-          router.push(`/matches?roomId=${room.id}`);
+          router.push(getRoomHref("/matches", room.id, room.shareToken));
         }}
       />
       <BottomNav roomId={room.id} active="swipe" />
@@ -566,7 +633,7 @@ export default function SwipePage() {
             eventName: "match_list_cta_clicked",
             metadata: { entry: "match_modal" }
           });
-          router.push(`/matches?roomId=${room.id}`);
+          router.push(getRoomHref("/matches", room.id, room.shareToken));
         }}
       />
     </AppChrome>
