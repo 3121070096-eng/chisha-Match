@@ -106,7 +106,7 @@ export default function HomePage() {
   return (
     <AppChrome
       rightSlot={
-        <div className="rounded-full bg-teal-50 px-3 py-2 text-xs font-black text-teal-700 ring-1 ring-teal-100">
+        <div className="rounded-full bg-teal-50 px-3 py-2 text-xs font-black text-teal-800 ring-1 ring-teal-200">
           Beta
         </div>
       }
@@ -132,21 +132,21 @@ export default function HomePage() {
                 onError={(event) => useFallbackImage(event.currentTarget, heroRestaurant)}
               />
             ) : null}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/52 to-slate-950/12" />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-950/18" />
             <div className="absolute right-5 top-5 flex rotate-[-5deg] items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-black text-teal-600 shadow-lg">
               <Sparkles size={16} />
               Match!
             </div>
             <div className="absolute inset-x-0 bottom-0 p-6">
-              <p className="text-xs font-black tracking-[0.12em] text-teal-100">吃啥 Match · Beta</p>
-              <h1 className="mt-3 text-4xl font-black leading-[1.06]">
+              <p className="text-xs font-black tracking-[0.12em] text-teal-50">吃啥 Match · Beta</p>
+              <h1 className="mt-3 text-4xl font-black leading-[1.06] text-white">
                 像交友软件一样，
                 <span className="block">和朋友一起滑餐厅</span>
               </h1>
-              <p className="mt-4 max-w-[19rem] text-sm font-semibold leading-6 text-white/84">
+              <p className="mt-4 max-w-[19rem] text-sm font-bold leading-6 text-white/95">
                 左滑不想吃，右滑想吃。你和朋友都喜欢的餐厅会自动 Match。
               </p>
-              <p className="mt-2 text-xs font-bold text-teal-100">适合朋友聚餐、约饭前快速达成共识。</p>
+              <p className="mt-2 text-xs font-black text-teal-50">适合朋友聚餐、约饭前快速达成共识。</p>
             </div>
           </div>
 
@@ -155,12 +155,12 @@ export default function HomePage() {
               const Icon = step.icon;
               return (
                 <div key={step.title} className="min-w-0 rounded-lg bg-white px-3 py-3 shadow-sm ring-1 ring-teal-900/5">
-                  <div className="flex items-center gap-1.5 text-xs font-black text-slate-800">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-slate-950">
                     <span className="grid size-5 shrink-0 place-items-center rounded-full bg-teal-500 text-[10px] text-white">{index + 1}</span>
                     <Icon size={13} className="text-teal-600" />
                   </div>
-                  <p className="mt-2 truncate text-xs font-black text-slate-800">{step.title}</p>
-                  <p className="mt-1 text-[10px] font-bold leading-4 text-slate-400">{step.detail}</p>
+                  <p className="mt-2 truncate text-xs font-black text-slate-950">{step.title}</p>
+                  <p className="mt-1 text-[11px] font-bold leading-4 text-slate-600">{step.detail}</p>
                 </div>
               );
             })}
@@ -187,12 +187,12 @@ export default function HomePage() {
             <button
               type="button"
               onClick={() => setJoinOpen((value) => !value)}
-              className="flex h-10 w-full items-center justify-center gap-2 text-sm font-black text-slate-600"
+              className="flex h-10 w-full items-center justify-center gap-2 text-sm font-black text-slate-700"
             >
               <LogIn size={16} />
               已有旧饭局？加入饭局
             </button>
-            <div className="flex items-center justify-center gap-4 pt-1 text-xs font-black text-slate-400">
+            <div className="flex items-center justify-center gap-4 pt-1 text-xs font-black text-slate-600">
               <Link href="/about">关于项目</Link>
               <Link href="/privacy" className="inline-flex items-center gap-1"><ShieldCheck size={13} />隐私说明</Link>
             </div>
