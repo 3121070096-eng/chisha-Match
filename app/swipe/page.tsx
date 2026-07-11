@@ -180,6 +180,20 @@ export default function SwipePage() {
   }, [currentMember?.id, refreshRoomForMember, room?.databaseId, roomCode]);
 
   useEffect(() => {
+    if (!room || !currentMember || room.status !== "decided") return;
+
+    if (markOnce(`chisha:event:decided_room_landed:${room.id}:${currentMember.id}`)) {
+      void trackEvent({
+        roomId: room.id,
+        memberId: currentMember.id,
+        eventName: "decided_room_landed",
+        metadata: { restaurant_id: room.finalRestaurantId, entry: "swipe" }
+      });
+    }
+    router.replace(`/final?roomId=${room.id}`);
+  }, [currentMember, room, router]);
+
+  useEffect(() => {
     if (!room) {
       setRestaurantSource(null);
       return;
@@ -281,6 +295,12 @@ export default function SwipePage() {
   async function handleDecision(decision: SwipeDecision) {
     if (!room?.databaseId || !state || !currentMember || !currentRestaurant) return;
 
+    if (room.status === "decided") {
+      setError("这局已经决定啦，不能再修改滑卡结果。");
+      router.replace(`/final?roomId=${room.id}`);
+      return;
+    }
+
     const previousMatches = state.matches;
     const restaurantId = currentRestaurant.id;
     const memberSession = getRoomMemberSession(room.id);
@@ -359,6 +379,12 @@ export default function SwipePage() {
 
   async function resetDeck() {
     if (!room?.databaseId || !currentMember) return;
+
+    if (room.status === "decided") {
+      setError("这局已经决定啦，不能再重置选择。");
+      router.replace(`/final?roomId=${room.id}`);
+      return;
+    }
 
     try {
       setPopup(null);

@@ -4,6 +4,7 @@ import { AppChrome } from "@/components/AppChrome";
 import { EmptyState } from "@/components/EmptyState";
 import { getRestaurantAreaKey, getRestaurantAreaLabel } from "@/data/restaurants";
 import { trackEvent } from "@/lib/analytics";
+import { copyToClipboard, getRoomInviteLink } from "@/lib/share";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
 import {
   clearRoomMemberSession,
@@ -31,11 +32,18 @@ import {
   Wallet
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 
 function getRoomIdFromUrl() {
   if (typeof window === "undefined") return "";
   return new URLSearchParams(window.location.search).get("roomId") ?? "";
+}
+
+function markOnce(key: string) {
+  if (typeof window === "undefined") return false;
+  if (window.localStorage.getItem(key)) return false;
+  window.localStorage.setItem(key, "1");
+  return true;
 }
 
 export default function RoomPage() {
@@ -157,10 +165,21 @@ export default function RoomPage() {
     return unsubscribe;
   }, [refreshRoomForMember, room?.databaseId, roomCode]);
 
-  const inviteLink = useMemo(() => {
-    if (!room || typeof window === "undefined") return "";
-    return `${window.location.origin}/room?roomId=${room.id}`;
-  }, [room]);
+  const inviteLink = getRoomInviteLink(room?.id ?? "");
+
+  useEffect(() => {
+    if (!room || !currentMember || room.status !== "decided") return;
+
+    if (markOnce(`chisha:event:decided_room_landed:${room.id}:${currentMember.id}`)) {
+      void trackEvent({
+        roomId: room.id,
+        memberId: currentMember.id,
+        eventName: "decided_room_landed",
+        metadata: { restaurant_id: room.finalRestaurantId }
+      });
+    }
+    router.replace(`/final?roomId=${room.id}`);
+  }, [currentMember, room, router]);
 
   async function handleNickname(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -186,12 +205,12 @@ export default function RoomPage() {
     const activeRoom = room;
 
     try {
-      await navigator.clipboard.writeText(inviteLink);
+      await copyToClipboard(inviteLink);
       setCopied(true);
       void trackEvent({
         roomId: activeRoom.id,
         memberId: currentMember?.id,
-        eventName: "invite_copied",
+        eventName: "invite_link_copied",
         metadata: {
           invite_url_origin: window.location.origin,
           room_status: activeRoom.status ?? "open"
@@ -199,8 +218,9 @@ export default function RoomPage() {
       });
       window.setTimeout(() => setCopied(false), 2200);
     } catch (copyError) {
-      console.error("[Browser] copy invite link failed", copyError);
+      console.error("[Room] copy invite link failed", copyError);
       setCopied(false);
+      setError("复制链接失败，请稍后再试。");
     }
   }
 
@@ -264,6 +284,12 @@ export default function RoomPage() {
               </div>
             </div>
           </div>
+
+          {room.status === "decided" ? (
+            <div className="rounded-lg bg-amber-50 px-4 py-3 text-sm font-black text-amber-800 ring-1 ring-amber-200">
+              这局已经决定啦：今晚吃 {room.finalRestaurantId ? "最终餐厅已揭晓" : "这家"}。
+            </div>
+          ) : null}
 
           {!currentMember ? (
             <form
@@ -331,7 +357,7 @@ export default function RoomPage() {
             </div>
             {copied ? (
               <p className="mt-2 text-sm font-black text-teal-600">
-                已复制，快发给朋友一起选！
+                链接已复制，发给朋友一起看。
               </p>
             ) : null}
           </div>
@@ -364,11 +390,17 @@ export default function RoomPage() {
           <button
             type="button"
             disabled={!currentMember}
-            onClick={() => router.push(`/swipe?roomId=${room.id}`)}
+            onClick={() =>
+              router.push(
+                room.status === "decided"
+                  ? `/final?roomId=${room.id}`
+                  : `/swipe?roomId=${room.id}`
+              )
+            }
             className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-teal-500 text-base font-black text-white shadow-lg shadow-teal-500/25 transition enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
           >
             <Play size={21} className="fill-white" />
-            开始选择
+            {room.status === "decided" ? "查看最终结果" : "开始选择"}
           </button>
         </div>
       </section>

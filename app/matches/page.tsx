@@ -18,6 +18,7 @@ import {
   type RestaurantSourceResult
 } from "@/lib/restaurantSource";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
+import { copyToClipboard, getRoomInviteLink } from "@/lib/share";
 import { clearRoomMemberSession, getRoomMemberSession } from "@/lib/storage";
 import {
   chooseSupabaseFinalRestaurant,
@@ -25,7 +26,7 @@ import {
   subscribeToSupabaseRoom
 } from "@/lib/supabaseRooms";
 import type { DecisionVote, MatchItem, Room, RoomMember, RoomMemberSession, SwipeState } from "@/types";
-import { Home } from "lucide-react";
+import { Copy, Home } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -56,6 +57,7 @@ export default function MatchesPage() {
   const [voting, setVoting] = useState(false);
   const [randomizing, setRandomizing] = useState(false);
   const [randomResult, setRandomResult] = useState<MatchItem | null>(null);
+  const [inviteCopied, setInviteCopied] = useState(false);
   const randomIntervalRef = useRef<number | null>(null);
   const randomTimeoutRef = useRef<number | null>(null);
 
@@ -201,6 +203,7 @@ export default function MatchesPage() {
     [decisionVoteCounts, matchItems, room?.budget, room?.cuisines, room?.location]
   );
   const isDecided = room?.status === "decided" || Boolean(state?.finalRestaurantId);
+  const inviteLink = useMemo(() => getRoomInviteLink(room?.id ?? ""), [room?.id]);
 
   useEffect(() => {
     if (!room || !state) return;
@@ -329,6 +332,25 @@ export default function MatchesPage() {
     void chooseFinal(randomResult.restaurant.id);
   }
 
+  async function copyInviteLink() {
+    if (!room || !inviteLink) return;
+
+    try {
+      await copyToClipboard(inviteLink);
+      setInviteCopied(true);
+      window.setTimeout(() => setInviteCopied(false), 2400);
+      void trackEvent({
+        roomId: room.id,
+        memberId: currentMember?.id,
+        eventName: "invite_link_copied",
+        metadata: { invite_url_origin: window.location.origin, room_status: room.status ?? "open" }
+      });
+    } catch (copyError) {
+      console.error("[Matches] copy invite link failed", copyError);
+      setError("复制链接失败，请稍后再试。");
+    }
+  }
+
   if (missingRoom) {
     return (
       <AppChrome showBack title="共同心动餐厅榜">
@@ -384,9 +406,22 @@ export default function MatchesPage() {
         </div>
       ) : null}
       <section className="flex min-h-0 flex-1 flex-col px-5 pb-3 pt-1">
-        <p className="mb-2 rounded-full bg-white/82 px-3 py-2 text-xs font-black text-slate-500 shadow-sm ring-1 ring-teal-900/5">
-          饭局地点：{room.location}
-        </p>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="min-w-0 truncate rounded-full bg-white/82 px-3 py-2 text-xs font-black text-slate-500 shadow-sm ring-1 ring-teal-900/5">
+            饭局地点：{room.location}
+          </p>
+          <button
+            type="button"
+            onClick={() => void copyInviteLink()}
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-teal-50 px-3 text-xs font-black text-teal-700 ring-1 ring-teal-100"
+          >
+            <Copy size={14} />
+            {inviteCopied ? "已复制" : "邀请朋友"}
+          </button>
+        </div>
+        {inviteCopied ? (
+          <p className="-mt-1 mb-3 text-sm font-black text-teal-600">链接已复制，发给朋友一起看。</p>
+        ) : null}
         <MatchList
           items={matchItems}
           qualityContext={{

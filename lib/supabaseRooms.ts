@@ -362,6 +362,21 @@ export async function loadSupabaseRoomStateForMember(
   };
 }
 
+async function assertRoomIsOpenForSwiping(roomDatabaseId: string) {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("rooms")
+    .select("status")
+    .eq("id", roomDatabaseId)
+    .maybeSingle();
+
+  if (error) throwSupabaseError("check room status before swipe failed", error);
+  if (!data) throw new Error("没有找到这个饭局房间");
+  if (data.status === "decided") {
+    throw new Error("这局已经决定啦，不能再修改滑卡结果");
+  }
+}
+
 export async function writeSupabaseSwipe({
   roomDatabaseId,
   memberId,
@@ -374,6 +389,7 @@ export async function writeSupabaseSwipe({
   decision: SwipeDecision;
 }) {
   const supabase = getSupabaseClient();
+  await assertRoomIsOpenForSwiping(roomDatabaseId);
   const { data, error } = await supabase
     .from("swipes")
     .upsert(

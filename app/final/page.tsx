@@ -4,30 +4,52 @@ import { AppChrome } from "@/components/AppChrome";
 import { BottomNav } from "@/components/BottomNav";
 import { EmptyState } from "@/components/EmptyState";
 import { FeedbackPanel } from "@/components/FeedbackPanel";
-import { FinalResultCard } from "@/components/FinalResultCard";
+import { ShareResultCard } from "@/components/ShareResultCard";
 import { getAmapNavigationUrl } from "@/lib/decision";
 import { getDecisionVoteCounts, loadDecisionVotes } from "@/lib/decisionVotes";
 import { trackEvent } from "@/lib/analytics";
 import { findRestaurantInPool, getMatchItemsFromRestaurants } from "@/lib/match";
 import {
+  prepareRestaurantPoolForRoom,
   getRestaurantSourceForRoom,
   type RestaurantSourceResult
 } from "@/lib/restaurantSource";
+import { copyToClipboard, getRoomInviteLink } from "@/lib/share";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
-import { clearRoomMemberSession, getRoomMemberSession } from "@/lib/storage";
 import {
-  clearSupabaseFinalRestaurant,
+  clearRoomMemberSession,
+  getCurrentUser,
+  getRoomMemberSession,
+  saveCurrentUser,
+  saveRoomMemberSession
+} from "@/lib/storage";
+import {
+  createSupabaseRoom,
   loadSupabaseRoomStateForMember,
   subscribeToSupabaseRoom
 } from "@/lib/supabaseRooms";
-import type { DecisionVote, MatchItem, Room, RoomMemberSession, SwipeState } from "@/types";
-import { Copy, Home, Plus, RotateCcw, Trophy } from "lucide-react";
+import type {
+  CreateRoomInput,
+  DecisionVote,
+  MatchItem,
+  Room,
+  RoomMemberSession,
+  SwipeState
+} from "@/types";
+import { Copy, Home, Link as LinkIcon, MapPinned, Plus, Trophy } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 function getRoomIdFromUrl() {
   if (typeof window === "undefined") return "";
   return new URLSearchParams(window.location.search).get("roomId") ?? "";
+}
+
+function markOnce(key: string) {
+  if (typeof window === "undefined") return false;
+  if (window.localStorage.getItem(key)) return false;
+  window.localStorage.setItem(key, "1");
+  return true;
 }
 
 export default function FinalPage() {
@@ -40,7 +62,9 @@ export default function FinalPage() {
   const [joinRequired, setJoinRequired] = useState(false);
   const [missingRoom, setMissingRoom] = useState(false);
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
+  const [recreating, setRecreating] = useState(false);
 
   const refreshRoom = useCallback(async (
     code: string,
@@ -181,23 +205,25 @@ export default function FinalPage() {
     [decisionVotes]
   );
   const amapUrl = finalItem ? getAmapNavigationUrl(finalItem.restaurant) : null;
+  const inviteLink = useMemo(() => getRoomInviteLink(room?.id ?? ""), [room?.id]);
 
-  async function resetFinal() {
-    if (!room?.databaseId) return;
+  useEffect(() => {
+    if (!room || !finalItem) return;
+    if (!markOnce(`chisha:event:share_card_viewed:${room.id}`)) return;
 
-    try {
-      await clearSupabaseFinalRestaurant(room.databaseId);
-      setState((current) =>
-        current ? { ...current, finalRestaurantId: undefined } : current
-      );
-      router.push(`/matches?roomId=${room.id}`);
-    } catch (resetError) {
-      console.error("[Final] reset final restaurant failed", resetError);
-      setError(getReadableSupabaseError(resetError, "重置最终选择失败"));
-    }
-  }
+    void trackEvent({
+      roomId: room.id,
+      eventName: "share_card_viewed",
+      metadata: { restaurant_id: finalItem.restaurant.id }
+    });
+    void trackEvent({
+      roomId: room.id,
+      eventName: "decided_room_viewed",
+      metadata: { restaurant_id: finalItem.restaurant.id }
+    });
+  }, [finalItem, room]);
 
-  async function copyFinalResult() {
+  async function copyGroupMessage() {
     if (!finalItem || !room) return;
     const { restaurant, match } = finalItem;
     const price = restaurant.price > 0 ? `约 ¥${restaurant.price} / 人` : "人均待确认";
@@ -207,24 +233,51 @@ export default function FinalPage() {
       `人均：${price}`,
       `菜系：${restaurant.cuisine}`,
       restaurant.address ? `地址：${restaurant.address}` : "",
-      `${match.count} 人共同喜欢`,
-      "来自吃啥 Match 的共同心动结果"
+      `共同喜欢人数：${match.count} 人`,
+      decisionVoteCounts[restaurant.id] > 0
+        ? `二轮票数：${decisionVoteCounts[restaurant.id]} 票`
+        : "",
+      amapUrl ? `地图：${amapUrl}` : "",
+      "大家一起用吃啥 Match 选出来的，出发！"
     ]
       .filter(Boolean)
       .join("\n");
 
     try {
-      await navigator.clipboard.writeText(content);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2200);
+      await copyToClipboard(content);
+      setShareCopied(true);
+      window.setTimeout(() => setShareCopied(false), 2400);
       void trackEvent({
         roomId: room.id,
-        eventName: "final_result_copied",
-        metadata: { restaurant_id: restaurant.id }
+        eventName: "share_text_copied",
+        metadata: {
+          room_id: room.id,
+          restaurant_id: restaurant.id,
+          restaurant_name: restaurant.name,
+          has_amap_url: Boolean(amapUrl)
+        }
       });
     } catch (copyError) {
-      console.error("[Final] copy result failed", copyError);
-      setError("复制失败，请长按餐厅信息发送给朋友。");
+      console.error("[Final] copy group message failed", copyError);
+      setError("复制失败，可以手动截图分享。");
+    }
+  }
+
+  async function copyInviteLink() {
+    if (!room || !inviteLink) return;
+
+    try {
+      await copyToClipboard(inviteLink);
+      setInviteCopied(true);
+      window.setTimeout(() => setInviteCopied(false), 2400);
+      void trackEvent({
+        roomId: room.id,
+        eventName: "invite_link_copied",
+        metadata: { invite_url_origin: window.location.origin, room_status: room.status ?? "open" }
+      });
+    } catch (copyError) {
+      console.error("[Final] copy invite link failed", copyError);
+      setError("复制链接失败，请稍后再试。");
     }
   }
 
@@ -236,6 +289,64 @@ export default function FinalPage() {
       eventName: "amap_opened",
       metadata: { restaurant_id: finalItem.restaurant.id, entry: "final_result" }
     });
+  }
+
+  async function recreateRoom() {
+    if (!room) return;
+    setRecreating(true);
+    setError("");
+
+    const locationName = room.location.replace(/附近$/, "") || "新的饭局";
+    const input: CreateRoomInput = {
+      name: `再来一局 · ${locationName}`,
+      location: room.location,
+      locationMeta: room.locationMeta,
+      budget: room.budget,
+      cuisines: room.cuisines,
+      participants: room.participants || 4
+    };
+
+    try {
+      const user = getCurrentUser() ?? saveCurrentUser("饭局队长");
+      const { room: nextRoom, member } = await createSupabaseRoom(input, user);
+      const poolResult = await prepareRestaurantPoolForRoom(nextRoom, input.locationMeta);
+      saveRoomMemberSession(nextRoom.id, member, user.id);
+      void trackEvent({
+        roomId: nextRoom.id,
+        memberId: member.id,
+        eventName: "room_recreated_from_previous",
+        metadata: {
+          previous_room_id: room.id,
+          new_room_id: nextRoom.id,
+          area_key: nextRoom.locationMeta?.areaKey,
+          location_label: nextRoom.location,
+          cuisine_preference: nextRoom.cuisines,
+          budget: nextRoom.budget,
+          restaurant_source: poolResult.source
+        }
+      });
+      router.push(`/room?roomId=${nextRoom.id}`);
+    } catch (recreateError) {
+      console.error("[Final] recreate room failed", recreateError);
+      setError(getReadableSupabaseError(recreateError, "再开一局失败"));
+    } finally {
+      setRecreating(false);
+    }
+  }
+
+  function restartWithNewLocation() {
+    if (!room) return;
+    void trackEvent({
+      roomId: room.id,
+      eventName: "restart_with_new_location_clicked",
+      metadata: { budget: room.budget, cuisine_preference: room.cuisines }
+    });
+    const params = new URLSearchParams({
+      restart: "1",
+      budget: String(room.budget),
+      cuisines: room.cuisines.join(",")
+    });
+    router.push(`/create?${params.toString()}`);
   }
 
   if (missingRoom) {
@@ -281,20 +392,7 @@ export default function FinalPage() {
   }
 
   return (
-    <AppChrome
-      showBack
-      title="今晚就吃这家"
-      rightSlot={
-        <button
-          type="button"
-          aria-label="重新选择"
-          onClick={() => void resetFinal()}
-          className="grid size-10 place-items-center rounded-full bg-white text-slate-700 shadow-sm ring-1 ring-teal-900/5"
-        >
-          <RotateCcw size={18} />
-        </button>
-      }
-    >
+    <AppChrome showBack title="今晚就吃这家">
       {error ? (
         <div className="mx-5 mb-2 rounded-lg bg-rose-50 px-4 py-3 text-sm font-black text-rose-500">
           {error}
@@ -306,28 +404,62 @@ export default function FinalPage() {
         </p>
         {finalItem ? (
           <>
-            <FinalResultCard
+            <ShareResultCard
               item={finalItem}
+              locationLabel={room.location}
               decisionVoteCount={decisionVoteCounts[finalItem.restaurant.id] ?? 0}
-              onOpenMap={amapUrl ? openAmap : undefined}
             />
             <div className="safe-bottom mt-4 space-y-3">
               <FeedbackPanel roomId={room.id} />
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => void copyGroupMessage()}
+                  className="flex h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-3 text-sm font-black text-white shadow-sm"
+                >
+                  <Copy size={17} />
+                  {shareCopied ? "已复制，出发！" : "复制群聊文案"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void copyInviteLink()}
+                  className="flex h-12 items-center justify-center gap-2 rounded-full bg-white px-3 text-sm font-black text-slate-700 shadow-sm ring-1 ring-teal-900/10"
+                >
+                  <LinkIcon size={17} className="text-teal-600" />
+                  {inviteCopied ? "链接已复制" : "复制饭局链接"}
+                </button>
+              </div>
+              {shareCopied ? (
+                <p className="text-center text-sm font-black text-teal-600">已复制，发到群里就能出发！</p>
+              ) : null}
+              {inviteCopied ? (
+                <p className="text-center text-sm font-black text-teal-600">链接已复制，发给朋友一起看。</p>
+              ) : null}
+              {amapUrl ? (
+                <button
+                  type="button"
+                  onClick={openAmap}
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-teal-50 text-sm font-black text-teal-700 ring-1 ring-teal-100"
+                >
+                  <MapPinned size={18} />
+                  打开高德地图
+                </button>
+              ) : null}
               <button
                 type="button"
-                onClick={() => void copyFinalResult()}
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-black text-slate-700 shadow-sm ring-1 ring-teal-900/10"
+                onClick={() => void recreateRoom()}
+                disabled={recreating}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-teal-500 text-base font-black text-white shadow-lg shadow-teal-500/25 disabled:bg-slate-300 disabled:shadow-none"
               >
-                <Copy size={17} className="text-teal-600" />
-                {copied ? "已复制，发到群里直接出发！" : "复制结果"}
+                <Plus size={18} />
+                {recreating ? "正在准备新一局" : "按这次设置再开一局"}
               </button>
               <button
                 type="button"
-                onClick={() => router.push("/create")}
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-teal-500 text-base font-black text-white shadow-lg shadow-teal-500/25"
+                onClick={restartWithNewLocation}
+                className="flex h-11 w-full items-center justify-center text-sm font-black text-slate-500"
               >
-                <Plus size={18} />
-                再开一局
+                换个地点再开一局
               </button>
             </div>
           </>

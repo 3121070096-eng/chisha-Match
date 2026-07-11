@@ -144,6 +144,18 @@ supabase/migrate-v34-decision-votes.sql
 
 V3.4 事件包括：`decision_recommendation_viewed`、`decision_random_started`、`decision_random_result`、`decision_random_accepted`、`decision_vote_cast`、`decision_vote_changed`、`final_result_copied`、`amap_opened`。
 
+## V3.5 分享传播与饭局复用
+
+- 最终结果升级为适合手机截图的「今晚就吃这家」结果卡，集中展示餐厅主图、地点、菜系、人均、距离、地址、共同喜欢人数、二轮票数与一起点头的成员。
+- 最终结果页可复制群聊文案；有高德导航链接时会一并附上。复制内容不包含任何 API key。
+- 房间页、共同心动榜和结果页都提供复制饭局链接，方便继续邀请朋友查看或加入。
+- 已决定的饭局链接会优先进入最终结果；后加入的成员可以查看结果，但客户端不再允许继续写入滑卡记录来改变决定。
+- 可按本次地点、坐标、半径、预算与菜系偏好「再开一局」。这会创建全新的房间与餐厅池，不会复用旧成员、旧 swipes 或旧最终餐厅。
+- 可选择「换个地点再开一局」，创建页仅预填上一局的预算和菜系偏好，地点需要重新选择。
+- 分享卡第一版不生成图片文件，适合直接截图发送到群聊。
+
+V3.5 新增事件：`share_text_copied`、`invite_link_copied`、`decided_room_viewed`、`decided_room_landed`、`room_recreated_from_previous`、`restart_with_new_location_clicked`、`share_card_viewed`。事件写入失败只会输出调试信息，不会中断饭局主流程。
+
 ## 技术栈
 
 - Next.js App Router
@@ -288,8 +300,11 @@ npm run build
 10. 在匹配清单里点击「就吃这家」。
 11. 有多个 Match 时，可以试试二轮投票或「帮我们随机一家」；随机结果不会自动拍板。
 12. 最终结果页展示「今晚就吃这家」、餐厅信息，并可复制结果或打开高德地图。
-13. 在最终结果页提交一次体验反馈。
-14. 可打开隐藏页 `/debug` 查看 feedback 和 events 是否写入成功。
+13. 在最终结果页点击「复制群聊文案」，确认可直接发到群聊；也可以复制饭局链接继续邀请朋友查看。
+14. 点击「按这次设置再开一局」，确认创建的是一个新房间，且餐厅池会重新生成。
+15. 点击「换个地点再开一局」，确认预算与菜系保留、地点需要重新选择。
+16. 在最终结果页提交一次体验反馈。
+17. 可打开隐藏页 `/debug` 查看 feedback 和 events 是否写入成功。
 
 ## 当前版本限制
 

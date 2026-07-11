@@ -28,6 +28,9 @@ const defaultCuisines = ["川渝火锅", "日料", "韩式烤肉"];
 type CreateRoomFormProps = {
   onCreate: (input: CreateRoomInput) => void;
   disabled?: boolean;
+  initialBudget?: number;
+  initialCuisines?: string[];
+  requireLocationSelection?: boolean;
 };
 
 type LocationResolvePayload =
@@ -41,18 +44,28 @@ type LocationResolvePayload =
       message?: string;
     };
 
-export function CreateRoomForm({ onCreate, disabled }: CreateRoomFormProps) {
+export function CreateRoomForm({
+  onCreate,
+  disabled,
+  initialBudget,
+  initialCuisines,
+  requireLocationSelection = false
+}: CreateRoomFormProps) {
   const [name, setName] = useState("周五晚饭局");
-  const [selectedLocation, setSelectedLocation] = useState<RoomLocation>(popularLocations[0]);
+  const [selectedLocation, setSelectedLocation] = useState<RoomLocation | null>(
+    requireLocationSelection ? null : popularLocations[0]
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [resolvedQuery, setResolvedQuery] = useState("");
   const [locationNotice, setLocationNotice] = useState("");
   const [locating, setLocating] = useState(false);
   const [searching, setSearching] = useState(false);
   const [submitResolving, setSubmitResolving] = useState(false);
-  const [budget, setBudget] = useState(120);
+  const [budget, setBudget] = useState(initialBudget ?? 120);
   const [participants, setParticipants] = useState(4);
-  const [selectedCuisines, setSelectedCuisines] = useState<string[]>(defaultCuisines);
+  const [selectedCuisines, setSelectedCuisines] = useState<string[]>(
+    initialCuisines && initialCuisines.length > 0 ? initialCuisines : defaultCuisines
+  );
   const busy = Boolean(disabled || locating || searching || submitResolving);
 
   function toggleCuisine(cuisine: string) {
@@ -217,6 +230,11 @@ export function CreateRoomForm({ onCreate, disabled }: CreateRoomFormProps) {
       finalLocation = resolvedLocation;
     }
 
+    if (!finalLocation) {
+      setLocationNotice("请选择当前位置、搜索地点或热门地点后再创建饭局。");
+      return;
+    }
+
     onCreate({
       name,
       location: finalLocation.locationLabel,
@@ -317,7 +335,7 @@ export function CreateRoomForm({ onCreate, disabled }: CreateRoomFormProps) {
             <div className="flex flex-wrap gap-2">
               {popularLocations.map((location) => {
                 const active =
-                  selectedLocation.source === "preset" &&
+                  selectedLocation?.source === "preset" &&
                   selectedLocation.areaKey === location.areaKey;
 
                 return (
@@ -339,7 +357,7 @@ export function CreateRoomForm({ onCreate, disabled }: CreateRoomFormProps) {
           </div>
 
           <div className="mt-4 rounded-lg bg-teal-50 px-3 py-2 text-xs font-black leading-5 text-teal-700">
-            当前选择：{selectedLocation.locationLabel}
+            当前选择：{selectedLocation?.locationLabel ?? "还没选择地点"}
           </div>
           {locationNotice ? (
             <div className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs font-bold leading-5 text-slate-500">

@@ -9,13 +9,39 @@ import { getReadableSupabaseError } from "@/lib/supabaseErrors";
 import { getCurrentUser, saveCurrentUser, saveRoomMemberSession } from "@/lib/storage";
 import { createSupabaseRoom } from "@/lib/supabaseRooms";
 import type { CreateRoomInput } from "@/types";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
 export default function CreateRoomPage() {
+  return (
+    <Suspense
+      fallback={
+        <AppChrome showBack title="创建饭局">
+          <div className="grid flex-1 place-items-center px-5 text-sm font-bold text-slate-500">
+            正在准备创建饭局
+          </div>
+        </AppChrome>
+      }
+    >
+      <CreateRoomContent />
+    </Suspense>
+  );
+}
+
+function CreateRoomContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
+  const isLocationRestart = searchParams.get("restart") === "1";
+  const requestedBudget = Number(searchParams.get("budget"));
+  const initialBudget = Number.isFinite(requestedBudget)
+    ? Math.min(260, Math.max(40, requestedBudget))
+    : undefined;
+  const initialCuisines = (searchParams.get("cuisines") ?? "")
+    .split(",")
+    .map((cuisine) => cuisine.trim())
+    .filter(Boolean);
 
   async function handleCreate(input: CreateRoomInput) {
     setError("");
@@ -68,7 +94,13 @@ export default function CreateRoomPage() {
           正在为你找附近餐厅...
         </div>
       ) : null}
-      <CreateRoomForm onCreate={handleCreate} disabled={creating} />
+      <CreateRoomForm
+        onCreate={handleCreate}
+        disabled={creating}
+        initialBudget={initialBudget}
+        initialCuisines={initialCuisines}
+        requireLocationSelection={isLocationRestart}
+      />
     </AppChrome>
   );
 }

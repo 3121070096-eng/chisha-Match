@@ -17,6 +17,7 @@ export type AnalyticsEventName =
   | "location_search_failed"
   | "preset_location_selected"
   | "invite_copied"
+  | "invite_link_copied"
   | "member_joined"
   | "swipe_started"
   | "restaurant_liked"
@@ -43,6 +44,12 @@ export type AnalyticsEventName =
   | "decision_vote_cast"
   | "decision_vote_changed"
   | "final_result_copied"
+  | "share_text_copied"
+  | "share_card_viewed"
+  | "decided_room_viewed"
+  | "decided_room_landed"
+  | "room_recreated_from_previous"
+  | "restart_with_new_location_clicked"
   | "amap_opened";
 
 export type TrackEventInput = {
