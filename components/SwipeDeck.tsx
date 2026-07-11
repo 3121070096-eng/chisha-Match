@@ -13,7 +13,7 @@ import {
 import type { Room, SwipeDecision, SwipeState } from "@/types";
 import { motion } from "framer-motion";
 import { CircleHelp, Heart, ListChecks, UtensilsCrossed, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 
 type SwipeDeckProps = {
   room: Room;
@@ -44,9 +44,9 @@ export function SwipeDeck({
   const primaryRestaurant = visibleRestaurants[0] ?? null;
   const queuedRestaurants = visibleRestaurants.slice(1, 3);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     visibleRestaurants.slice(0, 4).forEach((restaurant, index) => {
-      preloadRestaurantImages(restaurant, index === 0 ? 3 : 1, index === 0);
+      preloadRestaurantImages(restaurant, index === 0 ? 3 : 1, index < 2);
     });
   }, [visibleRestaurants]);
 
@@ -60,57 +60,43 @@ export function SwipeDeck({
 
   return (
     <section className="flex min-h-0 flex-1 flex-col px-4 pb-2 pt-0">
-      <div className="mb-1 flex items-center justify-between gap-3 px-1">
+      <div className="mb-2 flex items-center justify-between gap-2 px-1">
         <p className="min-w-0 truncate text-xs font-black text-slate-500">
           {room.location} · {room.name}
         </p>
-        <button
-          type="button"
-          onClick={onViewMatches}
-          className="shrink-0 rounded-full bg-white/80 px-2.5 py-1 text-xs font-black text-teal-600 shadow-sm ring-1 ring-teal-900/5"
-        >
-          看榜
-        </button>
-      </div>
-
-      <div className="mb-2">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] font-black no-scrollbar">
-          <span className="shrink-0 rounded-full bg-white/84 px-2.5 py-1.5 text-slate-700 shadow-sm ring-1 ring-teal-900/5">
-            已选择 {selectedCount} / {totalRestaurants}
-          </span>
-          <span className="shrink-0 rounded-full bg-teal-50 px-2.5 py-1.5 text-teal-700 ring-1 ring-teal-100">
-            已有 {state.matches.length} 个
+        <div className="flex shrink-0 items-center gap-1.5 text-[11px] font-black">
+          <span className="rounded-full bg-white px-2.5 py-1.5 text-slate-600 ring-1 ring-teal-900/5">
+            {selectedCount}/{totalRestaurants}
           </span>
           <button
             type="button"
+            onClick={onViewMatches}
+            className="rounded-full bg-teal-50 px-2.5 py-1.5 text-teal-700 ring-1 ring-teal-100"
+          >
+            {state.matches.length} 心动
+          </button>
+          <button
+            type="button"
             onClick={() => setShowHelp((value) => !value)}
-            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1.5 text-amber-700 ring-1 ring-amber-100"
+            className="grid size-7 place-items-center rounded-full bg-white text-slate-500 ring-1 ring-teal-900/5"
+            aria-label="查看滑卡玩法"
           >
             <CircleHelp size={13} />
-            怎么玩？
           </button>
         </div>
-        {showHelp ? (
-          <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mt-1 rounded-lg bg-white/86 px-3 py-2 text-[11px] font-black leading-5 text-slate-500 shadow-sm ring-1 ring-teal-900/5"
-          >
-            <div className="flex items-center gap-1.5">
-              <X size={13} className="text-rose-400" />
-              左滑：不想吃
-            </div>
-            <div className="flex items-center gap-1.5 text-teal-700">
-              <Heart size={13} className="fill-teal-500 text-teal-500" />
-              右滑：想吃
-            </div>
-            <div className="flex items-center gap-1.5 text-amber-700">
-              <ListChecks size={13} />
-              和朋友都喜欢的餐厅会进入共同心动榜
-            </div>
-          </motion.div>
-        ) : null}
       </div>
+
+      {showHelp ? (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-2 flex items-center justify-between rounded-lg bg-white px-3 py-2 text-[11px] font-black text-slate-500 ring-1 ring-teal-900/5"
+        >
+          <span className="inline-flex items-center gap-1"><X size={13} className="text-rose-400" /> 左滑跳过</span>
+          <span className="inline-flex items-center gap-1 text-teal-700"><Heart size={13} className="fill-teal-500" /> 右滑想吃</span>
+          <span className="inline-flex items-center gap-1 text-amber-700"><ListChecks size={13} /> 看榜</span>
+        </motion.div>
+      ) : null}
 
       <div className="relative min-h-0 flex-1">
         {primaryRestaurant ? (
@@ -203,7 +189,7 @@ function RestaurantStackPreview({
   depth: number;
 }) {
   return (
-    <div className="relative h-full min-h-[560px]">
+    <div className="relative h-full min-h-[520px]">
       <article className="absolute inset-0 overflow-hidden rounded-lg bg-white shadow-[0_18px_50px_rgba(15,118,110,0.14)] ring-1 ring-teal-900/8">
         <div className="relative h-[78%] overflow-hidden bg-teal-50">
           <img

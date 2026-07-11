@@ -5,8 +5,10 @@ import { trackImageLoadFailed } from "@/lib/analytics";
 import { formatRestaurantPrice, formatRestaurantRating } from "@/lib/restaurantDisplay";
 import {
   getRestaurantImages,
+  getRestaurantFallbackImages,
+  isRestaurantImageWarm,
+  markRestaurantImageLoaded,
   preloadRestaurantImages,
-  restaurantFallbackImage,
   useFallbackImage
 } from "@/lib/restaurantImages";
 import type { SwipeDecision } from "@/types";
@@ -47,13 +49,13 @@ export const RestaurantCard = memo(function RestaurantCard({
   const skipScale = useTransform(x, [-140, -30], [1, 0.86]);
   const controls = useAnimationControls();
   const [busy, setBusy] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(() => isRestaurantImageWarm(restaurant.image));
   const [imageFailed, setImageFailed] = useState(false);
   const [imageIndex, setImageIndex] = useState(0);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const images = useMemo(() => getRestaurantImages(restaurant), [restaurant]);
   const activeImage = images[imageIndex] ?? images[0] ?? "";
-  const imageSrc = imageFailed ? restaurantFallbackImage : activeImage;
+  const imageSrc = imageFailed ? getRestaurantFallbackImages(restaurant)[0] : activeImage;
 
   useEffect(() => {
     setImageIndex(0);
@@ -61,7 +63,7 @@ export const RestaurantCard = memo(function RestaurantCard({
   }, [restaurant]);
 
   useEffect(() => {
-    setImageLoaded(false);
+    setImageLoaded(isRestaurantImageWarm(activeImage));
     setImageFailed(false);
   }, [activeImage]);
 
@@ -93,7 +95,7 @@ export const RestaurantCard = memo(function RestaurantCard({
   }
 
   return (
-    <div className="relative h-full min-h-[560px]">
+    <div className="relative h-full min-h-[520px]">
       <motion.article
         drag="x"
         dragElastic={0.18}
@@ -119,7 +121,7 @@ export const RestaurantCard = memo(function RestaurantCard({
         style={{ x, rotate }}
         className="absolute inset-0 overflow-hidden rounded-lg bg-white shadow-[0_26px_70px_rgba(15,118,110,0.22)] ring-1 ring-teal-900/10"
       >
-        <div className="relative h-[78%] overflow-hidden bg-teal-100">
+        <div className="relative h-[82%] overflow-hidden bg-teal-100">
           <div className="absolute left-3 right-3 top-3 z-40 flex gap-1.5">
             {images.map((image) => (
               <span
@@ -156,7 +158,10 @@ export const RestaurantCard = memo(function RestaurantCard({
             loading={priority ? "eager" : "lazy"}
             decoding="async"
             fetchPriority={priority ? "high" : "auto"}
-            onLoad={() => setImageLoaded(true)}
+            onLoad={() => {
+              markRestaurantImageLoaded(imageSrc);
+              setImageLoaded(true);
+            }}
             onError={(event) => {
               setImageFailed(true);
               trackImageLoadFailed(restaurant, imageSrc);
@@ -228,7 +233,7 @@ export const RestaurantCard = memo(function RestaurantCard({
           </div>
         </div>
 
-        <div className="flex h-[22%] flex-col justify-center gap-3 p-4">
+        <div className="flex h-[18%] flex-col justify-center p-3.5">
           <div>
             <button
               type="button"
@@ -241,12 +246,12 @@ export const RestaurantCard = memo(function RestaurantCard({
             >
               <span className="inline-flex min-w-0 items-center gap-2">
                 <Info size={16} className="shrink-0 text-teal-500" />
-                <span className="truncate">查看详情和模拟食评</span>
+                <span className="truncate">查看详情</span>
               </span>
               <ChevronRight size={17} className="shrink-0 text-slate-400" />
             </button>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {restaurant.tags.slice(0, 3).map((tag) => (
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              {restaurant.tags.slice(0, 2).map((tag) => (
                 <span
                   key={tag}
                   className="rounded-full bg-teal-50 px-3 py-1.5 text-xs font-bold text-teal-700 ring-1 ring-teal-100"
@@ -255,15 +260,6 @@ export const RestaurantCard = memo(function RestaurantCard({
                 </span>
               ))}
             </div>
-            {restaurant.tags.length > 3 ? (
-              <div className="mt-2 flex flex-wrap gap-2">
-                <span
-                  className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-500"
-                >
-                  +{restaurant.tags.length - 3} 个标签在详情里
-                </span>
-              </div>
-            ) : null}
           </div>
         </div>
       </motion.article>

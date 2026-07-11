@@ -9,7 +9,7 @@ import { getCurrentUser, saveCurrentUser, saveRoomMemberSession } from "@/lib/st
 import { joinSupabaseRoom } from "@/lib/supabaseRooms";
 import { getDemoRestaurants } from "@/lib/restaurantSource";
 import { motion } from "framer-motion";
-import { ChevronRight, Heart, LogIn, Play, Plus, Sparkles, Users } from "lucide-react";
+import { ChevronRight, LogIn, Play, Plus, Sparkles, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
@@ -66,7 +66,7 @@ export default function HomePage() {
     <AppChrome
       rightSlot={
         <div className="rounded-full bg-white/85 px-3 py-2 text-xs font-black text-teal-700 shadow-sm">
-          V3.1
+          V3.4
         </div>
       }
     >
@@ -78,7 +78,7 @@ export default function HomePage() {
           className="flex flex-1 flex-col justify-between"
         >
           <div>
-            <div className="relative min-h-[430px] overflow-hidden rounded-lg bg-slate-950 text-white shadow-[0_24px_70px_rgba(15,118,110,0.22)]">
+            <div className="relative min-h-[390px] overflow-hidden rounded-lg bg-slate-950 text-white shadow-[0_24px_70px_rgba(15,118,110,0.22)]">
               <img
                 src={getRestaurantCover(homeRestaurants[9])}
                 alt="朋友聚餐"
@@ -96,57 +96,28 @@ export default function HomePage() {
                 Match!
               </div>
               <div className="absolute bottom-0 left-0 right-0 p-6">
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-teal-100">
-                  Eat Together
-                </p>
-                <h1 className="mt-6 max-w-[10ch] text-5xl font-black leading-[0.98]">
+                <p className="text-xs font-black tracking-[0.12em] text-teal-100">吃啥 Match · V3.4</p>
+                <h1 className="mt-4 max-w-[10ch] text-4xl font-black leading-[1.02]">
                   今天吃什么，不用再吵了。
                 </h1>
-                <p className="mt-5 max-w-[19rem] text-base font-semibold leading-7 text-white/82">
+                <p className="mt-4 max-w-[18rem] text-sm font-semibold leading-6 text-white/82">
                   创建饭局，邀请朋友，一起左右滑餐厅，自动匹配大家都想吃的那家。
                 </p>
-                <div className="mt-6 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                  {homeRestaurants.slice(0, 4).map((restaurant) => (
-                    <div
-                      key={restaurant.id}
-                      className="shrink-0 rounded-full bg-white/14 px-3 py-2 text-xs font-black backdrop-blur"
-                    >
-                      {restaurant.cuisine}
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
 
-            <div className="mt-5 grid grid-cols-3 gap-3">
-              <div className="rounded-lg bg-white/88 px-3 py-4 text-center shadow-sm ring-1 ring-teal-900/5">
-                <p className="text-xl font-black text-slate-950">多区域</p>
-                <p className="mt-1 text-xs font-black text-slate-500">餐厅池</p>
-              </div>
-              <div className="rounded-lg bg-white/88 px-3 py-4 text-center shadow-sm ring-1 ring-teal-900/5">
-                <Heart size={21} className="mx-auto fill-rose-400 text-rose-400" />
-                <p className="mt-1 text-xs font-black text-slate-500">共同心动</p>
-              </div>
-              <div className="rounded-lg bg-white/88 px-3 py-4 text-center shadow-sm ring-1 ring-teal-900/5">
-                <p className="text-xl font-black text-teal-600">真图</p>
-                <p className="mt-1 text-xs font-black text-slate-500">V3.1 高德</p>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-lg bg-white/88 p-4 shadow-sm ring-1 ring-teal-900/5">
-              <p className="text-sm font-black text-slate-800">
-                第一次用？流程很简单
-              </p>
-              <div className="mt-3 grid gap-2">
+            <div className="mt-5 border-y border-teal-900/8 py-4">
+              <p className="text-xs font-black text-slate-500">四步决定今晚吃什么</p>
+              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
                 {steps.map((step, index) => (
                   <div
                     key={step}
-                    className="flex items-center gap-3 rounded-lg bg-teal-50/70 px-3 py-2 text-sm font-black text-slate-700"
+                    className="flex min-w-0 items-center gap-2 text-xs font-black text-slate-700"
                   >
-                    <span className="grid size-7 shrink-0 place-items-center rounded-full bg-teal-500 text-xs text-white">
+                    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-teal-500 text-[10px] text-white">
                       {index + 1}
                     </span>
-                    {step}
+                    <span className="truncate">{step}</span>
                   </div>
                 ))}
               </div>

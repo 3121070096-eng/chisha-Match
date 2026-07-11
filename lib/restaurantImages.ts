@@ -25,6 +25,17 @@ const fallbackImageGroups: Record<RestaurantFallbackType, string[]> = {
   default: ["/restaurants/fallback.png", "/restaurants/thai-1.png", "/restaurants/curry-1.png"]
 };
 
+const warmedImageUrls = new Set<string>();
+const loadedImageUrls = new Set<string>();
+
+export function isRestaurantImageWarm(src?: string) {
+  return Boolean(src && loadedImageUrls.has(src));
+}
+
+export function markRestaurantImageLoaded(src?: string) {
+  if (src) loadedImageUrls.add(src);
+}
+
 export function getRestaurantFallbackType(restaurant: Pick<Restaurant, "name" | "cuisine" | "tags">): RestaurantFallbackType {
   const text = `${restaurant.name} ${restaurant.cuisine} ${restaurant.tags.join(" ")}`;
   if (/火锅|川渝|冒菜|麻辣/.test(text)) return "hotpot";
@@ -76,10 +87,12 @@ export function preloadRestaurantImages(
   getRestaurantImages(restaurant)
     .slice(0, limit)
     .forEach((src, index) => {
+      if (warmedImageUrls.has(src)) return;
+      warmedImageUrls.add(src);
       const image = new window.Image();
       image.decoding = "async";
-      image.loading = index === 0 && highPriority ? "eager" : "lazy";
       image.fetchPriority = index === 0 && highPriority ? "high" : "auto";
+      image.onload = () => loadedImageUrls.add(src);
       image.src = src;
     });
 }
