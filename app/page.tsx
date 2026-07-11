@@ -154,13 +154,14 @@ export default function HomePage() {
             {steps.map((step, index) => {
               const Icon = step.icon;
               return (
-                <div key={step.title} className="min-w-0 rounded-lg bg-white px-3 py-3 shadow-sm ring-1 ring-teal-900/5">
-                  <div className="flex items-center gap-1.5 text-xs font-black text-slate-950">
-                    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-teal-500 text-[10px] text-white">{index + 1}</span>
-                    <Icon size={13} className="text-teal-600" />
+                <div key={step.title} className="min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-3 shadow-sm">
+                  <div className="flex items-center gap-1.5">
+                    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-slate-950 text-[10px] font-black text-white shadow-sm">{index + 1}</span>
+                    <span className="text-[10px] font-black text-slate-700">第 {index + 1} 步</span>
+                    <Icon size={13} className="ml-auto shrink-0 text-teal-700" />
                   </div>
                   <p className="mt-2 truncate text-xs font-black text-slate-950">{step.title}</p>
-                  <p className="mt-1 text-[11px] font-bold leading-4 text-slate-600">{step.detail}</p>
+                  <p className="mt-1 text-[11px] font-bold leading-4 text-slate-700">{step.detail}</p>
                 </div>
               );
             })}
