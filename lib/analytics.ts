@@ -35,7 +35,15 @@ export type AnalyticsEventName =
   | "restaurant_pool_quality_checked"
   | "restaurant_pool_completed"
   | "restaurant_pool_fallback_only"
-  | "restaurant_image_fallback_used";
+  | "restaurant_image_fallback_used"
+  | "decision_recommendation_viewed"
+  | "decision_random_started"
+  | "decision_random_result"
+  | "decision_random_accepted"
+  | "decision_vote_cast"
+  | "decision_vote_changed"
+  | "final_result_copied"
+  | "amap_opened";
 
 export type TrackEventInput = {
   roomId?: string | null;

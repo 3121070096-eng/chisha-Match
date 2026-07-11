@@ -5,6 +5,9 @@ import { BottomNav } from "@/components/BottomNav";
 import { EmptyState } from "@/components/EmptyState";
 import { FeedbackPanel } from "@/components/FeedbackPanel";
 import { FinalResultCard } from "@/components/FinalResultCard";
+import { getAmapNavigationUrl } from "@/lib/decision";
+import { getDecisionVoteCounts, loadDecisionVotes } from "@/lib/decisionVotes";
+import { trackEvent } from "@/lib/analytics";
 import { findRestaurantInPool, getMatchItemsFromRestaurants } from "@/lib/match";
 import {
   getRestaurantSourceForRoom,
@@ -17,8 +20,8 @@ import {
   loadSupabaseRoomStateForMember,
   subscribeToSupabaseRoom
 } from "@/lib/supabaseRooms";
-import type { MatchItem, Room, RoomMemberSession, SwipeState } from "@/types";
-import { Home, Plus, RotateCcw, Trophy } from "lucide-react";
+import type { DecisionVote, MatchItem, Room, RoomMemberSession, SwipeState } from "@/types";
+import { Copy, Home, Plus, RotateCcw, Trophy } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -31,11 +34,13 @@ export default function FinalPage() {
   const router = useRouter();
   const [room, setRoom] = useState<Room | null>(null);
   const [state, setState] = useState<SwipeState | null>(null);
+  const [decisionVotes, setDecisionVotes] = useState<DecisionVote[]>([]);
   const [restaurantSource, setRestaurantSource] = useState<RestaurantSourceResult | null>(null);
   const [roomCode, setRoomCode] = useState("");
   const [joinRequired, setJoinRequired] = useState(false);
   const [missingRoom, setMissingRoom] = useState(false);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const refreshRoom = useCallback(async (
     code: string,
@@ -44,6 +49,11 @@ export default function FinalPage() {
     const remoteState = await loadSupabaseRoomStateForMember(code, memberSession);
     setRoom(remoteState.room);
     setState(remoteState.swipeState);
+    try {
+      setDecisionVotes(await loadDecisionVotes(code));
+    } catch (voteError) {
+      console.error("[Final] load decision votes failed", voteError);
+    }
     return remoteState;
   }, []);
 
@@ -166,6 +176,12 @@ export default function FinalPage() {
     };
   }, [restaurantSource, room?.budget, room?.cuisines, room?.location, state]);
 
+  const decisionVoteCounts = useMemo(
+    () => getDecisionVoteCounts(decisionVotes),
+    [decisionVotes]
+  );
+  const amapUrl = finalItem ? getAmapNavigationUrl(finalItem.restaurant) : null;
+
   async function resetFinal() {
     if (!room?.databaseId) return;
 
@@ -179,6 +195,47 @@ export default function FinalPage() {
       console.error("[Final] reset final restaurant failed", resetError);
       setError(getReadableSupabaseError(resetError, "重置最终选择失败"));
     }
+  }
+
+  async function copyFinalResult() {
+    if (!finalItem || !room) return;
+    const { restaurant, match } = finalItem;
+    const price = restaurant.price > 0 ? `约 ¥${restaurant.price} / 人` : "人均待确认";
+    const content = [
+      `今晚吃：${restaurant.name}`,
+      `地点：${room.location}`,
+      `人均：${price}`,
+      `菜系：${restaurant.cuisine}`,
+      restaurant.address ? `地址：${restaurant.address}` : "",
+      `${match.count} 人共同喜欢`,
+      "来自吃啥 Match 的共同心动结果"
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2200);
+      void trackEvent({
+        roomId: room.id,
+        eventName: "final_result_copied",
+        metadata: { restaurant_id: restaurant.id }
+      });
+    } catch (copyError) {
+      console.error("[Final] copy result failed", copyError);
+      setError("复制失败，请长按餐厅信息发送给朋友。");
+    }
+  }
+
+  function openAmap() {
+    if (!amapUrl || !finalItem || !room) return;
+    window.open(amapUrl, "_blank", "noopener,noreferrer");
+    void trackEvent({
+      roomId: room.id,
+      eventName: "amap_opened",
+      metadata: { restaurant_id: finalItem.restaurant.id, entry: "final_result" }
+    });
   }
 
   if (missingRoom) {
@@ -249,12 +306,21 @@ export default function FinalPage() {
         </p>
         {finalItem ? (
           <>
-            <FinalResultCard item={finalItem} />
+            <FinalResultCard
+              item={finalItem}
+              decisionVoteCount={decisionVoteCounts[finalItem.restaurant.id] ?? 0}
+              onOpenMap={amapUrl ? openAmap : undefined}
+            />
             <div className="safe-bottom mt-4 space-y-3">
               <FeedbackPanel roomId={room.id} />
-              <p className="rounded-lg bg-white/88 px-4 py-3 text-center text-sm font-black text-slate-600 shadow-sm ring-1 ring-teal-900/5">
-                把结果发给朋友，别再纠结啦。
-              </p>
+              <button
+                type="button"
+                onClick={() => void copyFinalResult()}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-black text-slate-700 shadow-sm ring-1 ring-teal-900/10"
+              >
+                <Copy size={17} className="text-teal-600" />
+                {copied ? "已复制，发到群里直接出发！" : "复制结果"}
+              </button>
               <button
                 type="button"
                 onClick={() => router.push("/create")}

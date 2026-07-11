@@ -6,6 +6,12 @@ import { EmptyState } from "@/components/EmptyState";
 import { MatchList } from "@/components/MatchList";
 import { getRestaurantAreaKey } from "@/data/restaurants";
 import { trackEvent } from "@/lib/analytics";
+import { getRecommendedMatch } from "@/lib/decision";
+import {
+  castDecisionVote,
+  getDecisionVoteCounts,
+  loadDecisionVotes
+} from "@/lib/decisionVotes";
 import { getMatchItemsFromRestaurants } from "@/lib/match";
 import {
   getRestaurantSourceForRoom,
@@ -18,10 +24,10 @@ import {
   loadSupabaseRoomStateForMember,
   subscribeToSupabaseRoom
 } from "@/lib/supabaseRooms";
-import type { Room, RoomMemberSession, SwipeState } from "@/types";
+import type { DecisionVote, MatchItem, Room, RoomMember, RoomMemberSession, SwipeState } from "@/types";
 import { Home } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 function getRoomIdFromUrl() {
   if (typeof window === "undefined") return "";
@@ -38,12 +44,20 @@ function markOnce(key: string) {
 export default function MatchesPage() {
   const router = useRouter();
   const [room, setRoom] = useState<Room | null>(null);
+  const [currentMember, setCurrentMember] = useState<RoomMember | null>(null);
   const [state, setState] = useState<SwipeState | null>(null);
+  const [decisionVotes, setDecisionVotes] = useState<DecisionVote[]>([]);
   const [restaurantSource, setRestaurantSource] = useState<RestaurantSourceResult | null>(null);
   const [roomCode, setRoomCode] = useState("");
   const [joinRequired, setJoinRequired] = useState(false);
   const [missingRoom, setMissingRoom] = useState(false);
   const [error, setError] = useState("");
+  const [voteError, setVoteError] = useState("");
+  const [voting, setVoting] = useState(false);
+  const [randomizing, setRandomizing] = useState(false);
+  const [randomResult, setRandomResult] = useState<MatchItem | null>(null);
+  const randomIntervalRef = useRef<number | null>(null);
+  const randomTimeoutRef = useRef<number | null>(null);
 
   const refreshRoom = useCallback(async (
     code: string,
@@ -51,8 +65,19 @@ export default function MatchesPage() {
   ) => {
     const remoteState = await loadSupabaseRoomStateForMember(code, memberSession);
     setRoom(remoteState.room);
+    setCurrentMember(remoteState.currentMember);
     setState(remoteState.swipeState);
     return remoteState;
+  }, []);
+
+  const refreshVotes = useCallback(async (code: string) => {
+    try {
+      setDecisionVotes(await loadDecisionVotes(code));
+      setVoteError("");
+    } catch (voteLoadError) {
+      console.error("[Matches] load decision votes failed", voteLoadError);
+      setVoteError("二轮投票暂未启用，请确认 V3.4 migration 已执行。");
+    }
   }, []);
 
   useEffect(() => {
@@ -77,6 +102,7 @@ export default function MatchesPage() {
 
       try {
         const remoteState = await refreshRoom(roomId, memberSession);
+        await refreshVotes(roomId);
 
         if (!mounted) return;
 
@@ -86,6 +112,7 @@ export default function MatchesPage() {
             onChange: () => {
               const latestSession = getRoomMemberSession(roomId);
               if (latestSession) void refreshRoom(roomId, latestSession);
+              void refreshVotes(roomId);
             }
           });
         }
@@ -111,7 +138,12 @@ export default function MatchesPage() {
       mounted = false;
       unsubscribe?.();
     };
-  }, [refreshRoom]);
+  }, [refreshRoom, refreshVotes]);
+
+  useEffect(() => () => {
+    if (randomIntervalRef.current) window.clearInterval(randomIntervalRef.current);
+    if (randomTimeoutRef.current) window.clearTimeout(randomTimeoutRef.current);
+  }, []);
 
   useEffect(() => {
     if (!room) {
@@ -140,14 +172,35 @@ export default function MatchesPage() {
     };
   }, [room]);
 
+  const decisionVoteCounts = useMemo(
+    () => getDecisionVoteCounts(decisionVotes),
+    [decisionVotes]
+  );
+  const currentVoteRestaurantId = useMemo(
+    () => decisionVotes.find((vote) => vote.memberId === currentMember?.id)?.restaurantId,
+    [currentMember?.id, decisionVotes]
+  );
+
   const matchItems = useMemo(() => {
     if (!state || !restaurantSource) return [];
     return getMatchItemsFromRestaurants(state.matches, restaurantSource.restaurants, {
       locationLabel: room?.location,
       cuisinePreference: room?.cuisines[0],
       budget: room?.budget
-    });
-  }, [restaurantSource, room?.budget, room?.cuisines, room?.location, state]);
+    }, decisionVoteCounts);
+  }, [decisionVoteCounts, restaurantSource, room?.budget, room?.cuisines, room?.location, state]);
+
+  const recommendation = useMemo(
+    () =>
+      getRecommendedMatch(matchItems, {
+        locationLabel: room?.location,
+        cuisinePreference: room?.cuisines[0],
+        budget: room?.budget,
+        decisionVoteCounts
+      }),
+    [decisionVoteCounts, matchItems, room?.budget, room?.cuisines, room?.location]
+  );
+  const isDecided = room?.status === "decided" || Boolean(state?.finalRestaurantId);
 
   useEffect(() => {
     if (!room || !state) return;
@@ -164,8 +217,23 @@ export default function MatchesPage() {
     });
   }, [restaurantSource?.areaKey, room, state]);
 
+  useEffect(() => {
+    if (!room || !recommendation) return;
+    if (!markOnce(`chisha:event:decision_recommendation_viewed:${room.id}`)) return;
+    void trackEvent({
+      roomId: room.id,
+      memberId: currentMember?.id,
+      eventName: "decision_recommendation_viewed",
+      metadata: {
+        restaurant_id: recommendation.item.restaurant.id,
+        score: recommendation.score,
+        reason_tags: recommendation.reasonTags
+      }
+    });
+  }, [currentMember?.id, recommendation, room]);
+
   async function chooseFinal(restaurantId: string) {
-    if (!state || !room?.databaseId) return;
+    if (!state || !room?.databaseId || isDecided) return;
 
     try {
       const updatedRoom = await chooseSupabaseFinalRestaurant({
@@ -190,6 +258,75 @@ export default function MatchesPage() {
       console.error("[Matches] choose final restaurant failed", chooseError);
       setError(getReadableSupabaseError(chooseError, "选择最终餐厅失败"));
     }
+  }
+
+  async function castVote(restaurantId: string) {
+    if (!room?.databaseId || !currentMember || isDecided) return;
+    if (!matchItems.some((item) => item.restaurant.id === restaurantId)) return;
+
+    setVoting(true);
+    setVoteError("");
+    try {
+      const result = await castDecisionVote({
+        roomId: room.databaseId,
+        memberId: currentMember.id,
+        restaurantId
+      });
+      setDecisionVotes((current) => [
+        ...current.filter((vote) => vote.memberId !== currentMember.id),
+        result.vote
+      ]);
+      void trackEvent({
+        roomId: room.id,
+        memberId: currentMember.id,
+        eventName: result.changed ? "decision_vote_changed" : "decision_vote_cast",
+        metadata: { restaurant_id: restaurantId }
+      });
+    } catch (voteCastError) {
+      console.error("[Matches] cast decision vote failed", voteCastError);
+      setVoteError("投票失败，请稍后再试。");
+    } finally {
+      setVoting(false);
+    }
+  }
+
+  function startRandomDecision() {
+    if (matchItems.length === 0 || !room || isDecided) return;
+    if (randomIntervalRef.current) window.clearInterval(randomIntervalRef.current);
+    if (randomTimeoutRef.current) window.clearTimeout(randomTimeoutRef.current);
+
+    setRandomizing(true);
+    setRandomResult(matchItems[0]);
+    let cursor = 0;
+    void trackEvent({ roomId: room.id, memberId: currentMember?.id, eventName: "decision_random_started" });
+
+    randomIntervalRef.current = window.setInterval(() => {
+      cursor = (cursor + 1) % matchItems.length;
+      setRandomResult(matchItems[cursor]);
+    }, 95);
+    randomTimeoutRef.current = window.setTimeout(() => {
+      if (randomIntervalRef.current) window.clearInterval(randomIntervalRef.current);
+      const selected = matchItems[Math.floor(Math.random() * matchItems.length)];
+      setRandomResult(selected);
+      setRandomizing(false);
+      void trackEvent({
+        roomId: room.id,
+        memberId: currentMember?.id,
+        eventName: "decision_random_result",
+        metadata: { restaurant_id: selected.restaurant.id }
+      });
+    }, 850);
+  }
+
+  function acceptRandomDecision() {
+    if (!randomResult || !room) return;
+    void trackEvent({
+      roomId: room.id,
+      memberId: currentMember?.id,
+      eventName: "decision_random_accepted",
+      metadata: { restaurant_id: randomResult.restaurant.id }
+    });
+    void chooseFinal(randomResult.restaurant.id);
   }
 
   if (missingRoom) {
@@ -241,6 +378,11 @@ export default function MatchesPage() {
           {error}
         </div>
       ) : null}
+      {voteError ? (
+        <div className="mx-5 mb-2 rounded-lg bg-amber-50 px-4 py-3 text-sm font-black text-amber-700">
+          {voteError}
+        </div>
+      ) : null}
       <section className="flex min-h-0 flex-1 flex-col px-5 pb-3 pt-1">
         <p className="mb-2 rounded-full bg-white/82 px-3 py-2 text-xs font-black text-slate-500 shadow-sm ring-1 ring-teal-900/5">
           饭局地点：{room.location}
@@ -252,6 +394,21 @@ export default function MatchesPage() {
             cuisinePreference: room.cuisines[0],
             budget: room.budget
           }}
+          recommendation={recommendation}
+          decisionVoteCounts={decisionVoteCounts}
+          currentVoteRestaurantId={currentVoteRestaurantId}
+          voting={voting}
+          onVote={(restaurantId) => void castVote(restaurantId)}
+          randomResult={randomResult}
+          randomizing={randomizing}
+          onRandom={startRandomDecision}
+          onAcceptRandom={acceptRandomDecision}
+          isDecided={isDecided}
+          decidedRestaurantName={
+            matchItems.find((item) => item.restaurant.id === state.finalRestaurantId)?.restaurant.name ?? null
+          }
+          onViewResult={() => router.push(`/final?roomId=${room.id}`)}
+          onRestart={() => router.push("/create")}
           onChooseFinal={(restaurantId) => void chooseFinal(restaurantId)}
           onContinueSwipe={() => router.push(`/swipe?roomId=${room.id}`)}
         />

@@ -4,7 +4,7 @@
 
 ## 项目简介
 
-这个 Beta 版本已经接入 Supabase，支持真实多人房间、成员加入、滑卡记录、共同心动餐厅榜和最终餐厅选择。V3.0 增加了高德 Web 服务 API Spike；V3.1 增强高德餐厅图片获取和同源代理；V3.2 增加真实定位、地点搜索和热门地点创建饭局；V3.3 新增餐厅质量处理层，让真实 API 与本地补足结果以同一套规则进入固定餐厅池。
+这个 Beta 版本已经接入 Supabase，支持真实多人房间、成员加入、滑卡记录、共同心动餐厅榜和最终餐厅选择。V3.0 增加了高德 Web 服务 API Spike；V3.1 增强高德餐厅图片获取和同源代理；V3.2 增加真实定位、地点搜索和热门地点创建饭局；V3.3 新增餐厅质量处理层；V3.4 把 Match 后的榜单升级为可投票、可推荐、可随机拍板的决策面板。
 
 ## 核心功能
 
@@ -123,6 +123,26 @@ V3.3 让高德搜索结果在进入滑卡前先经过统一的质量处理层 `l
 - 共同心动榜仍先按共同喜欢人数排序；票数相同时依次参考餐厅质量、距离、预算匹配和信息完整度。
 
 V3.3 新增事件：`restaurant_pool_quality_checked`、`restaurant_pool_completed`、`restaurant_pool_fallback_only`、`restaurant_image_fallback_used`。它们只用于 Beta 调试，写入失败不会影响创建房间或多人 Match 主链路。
+
+## V3.4：结果决策增强
+
+V3.4 用于减少「大家都可以，但到底去哪家」的二次纠结：
+
+- 共同心动榜顶部会给出「最推荐今晚吃这家」，规则综合共同喜欢人数、二轮票数、餐厅质量、距离、预算、菜系和真实数据完整度；它只提供建议，不会自动决定。
+- 支持「帮我们随机一家」。随机只在当前用户界面执行，只有点击「就吃这家」才会写入最终决定。
+- 新增轻量二轮投票：每位成员最多 1 票，只能投给共同心动餐厅；再次投给其他候选会自动改投。榜单排序优先看二轮票数，再看共同喜欢人数和餐厅质量。
+- 最终结果页增加复制结果、二轮票数、地址和高德地图跳转。高德地图 URL 只包含餐厅名称、地址或经纬度，不会暴露 API key。
+- 详情页和最终结果页仅在真实高德餐厅具备地址或坐标时展示「打开高德地图」。
+
+新增 SQL migration：
+
+```text
+supabase/migrate-v34-decision-votes.sql
+```
+
+该脚本创建 `decision_votes`。由于当前项目的 `rooms.id` 与 `room_members.id` 为 `text`，迁移按实际类型建立外键；每位成员在同一房间只有一条投票记录。Beta 阶段 RLS 允许 anon `select` / `insert` / `delete`，正式上线前必须收紧。
+
+V3.4 事件包括：`decision_recommendation_viewed`、`decision_random_started`、`decision_random_result`、`decision_random_accepted`、`decision_vote_cast`、`decision_vote_changed`、`final_result_copied`、`amap_opened`。
 
 ## 技术栈
 
@@ -246,6 +266,7 @@ npm run build
    - `supabase/migrate-v30-restaurant-source.sql`
    - `supabase/migrate-v30-restaurant-cache.sql`
    - `supabase/migrate-v32-room-location.sql`
+   - `supabase/migrate-v34-decision-votes.sql`
 9. 部署完成后，打开线上地址测试创建房间和邀请链接。
 
 不要把 Supabase URL 或 anon key 硬编码到代码、README 或配置文件中。
@@ -265,9 +286,10 @@ npm run build
 8. 两个用户进入滑卡页，并对同一家餐厅点击「想吃」。
 9. 出现 Match 弹窗后进入「共同心动餐厅榜」。
 10. 在匹配清单里点击「就吃这家」。
-11. 最终结果页展示「今晚就吃这家」和餐厅信息。
-12. 在最终结果页提交一次体验反馈。
-13. 可打开隐藏页 `/debug` 查看 feedback 和 events 是否写入成功。
+11. 有多个 Match 时，可以试试二轮投票或「帮我们随机一家」；随机结果不会自动拍板。
+12. 最终结果页展示「今晚就吃这家」、餐厅信息，并可复制结果或打开高德地图。
+13. 在最终结果页提交一次体验反馈。
+14. 可打开隐藏页 `/debug` 查看 feedback 和 events 是否写入成功。
 
 ## 当前版本限制
 

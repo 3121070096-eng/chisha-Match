@@ -211,6 +211,45 @@ export type Database = {
           }
         ];
       };
+      decision_votes: {
+        Row: {
+          id: string;
+          room_id: string;
+          member_id: string;
+          restaurant_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          room_id: string;
+          member_id: string;
+          restaurant_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          room_id?: string;
+          member_id?: string;
+          restaurant_id?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "decision_votes_room_id_fkey";
+            columns: ["room_id"];
+            isOneToOne: false;
+            referencedRelation: "rooms";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "decision_votes_member_id_fkey";
+            columns: ["member_id"];
+            isOneToOne: false;
+            referencedRelation: "room_members";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       restaurant_cache: {
         Row: {
           id: string;

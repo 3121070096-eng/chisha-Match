@@ -36,7 +36,8 @@ export function findRestaurantInPool(
 export function getMatchItems(
   matches: MatchRecord[],
   location?: string,
-  context: RestaurantQualityContext = {}
+  context: RestaurantQualityContext = {},
+  decisionVoteCounts: Record<string, number> = {}
 ): MatchItem[] {
   return sortMatchItems(
     sortMatches(matches)
@@ -45,14 +46,16 @@ export function getMatchItems(
         return restaurant ? { match, restaurant } : null;
       })
       .filter((item): item is MatchItem => item !== null),
-    context
+    context,
+    decisionVoteCounts
   );
 }
 
 export function getMatchItemsFromRestaurants(
   matches: MatchRecord[],
   restaurants: MatchItem["restaurant"][],
-  context: RestaurantQualityContext = {}
+  context: RestaurantQualityContext = {},
+  decisionVoteCounts: Record<string, number> = {}
 ): MatchItem[] {
   return sortMatchItems(
     sortMatches(matches)
@@ -61,15 +64,22 @@ export function getMatchItemsFromRestaurants(
         return restaurant ? { match, restaurant } : null;
       })
       .filter((item): item is MatchItem => item !== null),
-    context
+    context,
+    decisionVoteCounts
   );
 }
 
 function sortMatchItems(
   items: MatchItem[],
-  context: RestaurantQualityContext = {}
+  context: RestaurantQualityContext = {},
+  decisionVoteCounts: Record<string, number> = {}
 ) {
   return [...items].sort((left, right) => {
+    const voteGap =
+      (decisionVoteCounts[right.restaurant.id] ?? 0) -
+      (decisionVoteCounts[left.restaurant.id] ?? 0);
+    if (voteGap !== 0) return voteGap;
+
     if (right.match.count !== left.match.count) return right.match.count - left.match.count;
 
     const qualityGap = scoreRestaurant(right.restaurant, context) - scoreRestaurant(left.restaurant, context);

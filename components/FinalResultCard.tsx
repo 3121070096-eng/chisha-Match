@@ -5,13 +5,19 @@ import { trackImageLoadFailed } from "@/lib/analytics";
 import { formatRestaurantPrice, formatRestaurantRating } from "@/lib/restaurantDisplay";
 import { getRestaurantCover, useFallbackImage } from "@/lib/restaurantImages";
 import { motion } from "framer-motion";
-import { CheckCircle2, Heart, MapPin, PartyPopper, Star, Wallet } from "lucide-react";
+import { CheckCircle2, Heart, MapPin, Navigation, PartyPopper, Star, Vote, Wallet } from "lucide-react";
 
 type FinalResultCardProps = {
   item: MatchItem;
+  decisionVoteCount?: number;
+  onOpenMap?: () => void;
 };
 
-export function FinalResultCard({ item }: FinalResultCardProps) {
+export function FinalResultCard({
+  item,
+  decisionVoteCount = 0,
+  onOpenMap
+}: FinalResultCardProps) {
   const { match, restaurant } = item;
 
   return (
@@ -46,6 +52,12 @@ export function FinalResultCard({ item }: FinalResultCardProps) {
             <Heart size={16} className="fill-white" />
             {match.count} 人共同心动
           </div>
+          {decisionVoteCount > 0 ? (
+            <div className="mb-4 ml-2 inline-flex items-center gap-2 rounded-full bg-amber-400 px-3 py-2 text-sm font-black text-slate-950">
+              <Vote size={16} />
+              二轮 {decisionVoteCount} 票
+            </div>
+          ) : null}
           <h1 className="text-4xl font-black leading-tight">{restaurant.name}</h1>
           <p className="mt-3 text-lg font-black text-teal-100">{restaurant.cuisine}</p>
           <div className="mt-5 grid grid-cols-3 gap-2">
@@ -73,6 +85,22 @@ export function FinalResultCard({ item }: FinalResultCardProps) {
               </span>
             ))}
           </div>
+          {restaurant.address ? (
+            <p className="mt-4 flex items-start gap-2 text-sm font-bold leading-6 text-white/80">
+              <MapPin size={16} className="mt-0.5 shrink-0 text-teal-200" />
+              {restaurant.address}
+            </p>
+          ) : null}
+          {onOpenMap ? (
+            <button
+              type="button"
+              onClick={onOpenMap}
+              className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-white text-sm font-black text-slate-800"
+            >
+              <Navigation size={17} className="text-teal-600" />
+              打开高德地图
+            </button>
+          ) : null}
           <div className="mt-5 rounded-lg bg-white/12 p-4 backdrop-blur">
             <div className="flex items-center gap-2 text-sm font-black text-teal-100">
               <CheckCircle2 size={17} />

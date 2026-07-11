@@ -481,6 +481,16 @@ export function subscribeToSupabaseRoom({
       {
         event: "*",
         schema: "public",
+        table: "decision_votes",
+        filter: `room_id=eq.${roomDatabaseId}`
+      },
+      scheduleRefresh
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
         table: "swipes",
         filter: `room_id=eq.${roomDatabaseId}`
       },

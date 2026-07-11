@@ -93,6 +93,14 @@ export type SwipeRecord = {
   updatedAt?: string;
 };
 
+export type DecisionVote = {
+  id: string;
+  roomId: string;
+  memberId: string;
+  restaurantId: Restaurant["id"];
+  createdAt: string;
+};
+
 export type SupabaseRoomState = {
   room: Room;
   currentMember: RoomMember;

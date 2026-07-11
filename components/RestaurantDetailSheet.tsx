@@ -1,7 +1,8 @@
 "use client";
 
 import type { Restaurant } from "@/data/restaurants";
-import { trackImageLoadFailed } from "@/lib/analytics";
+import { trackEvent, trackImageLoadFailed } from "@/lib/analytics";
+import { getAmapNavigationUrl } from "@/lib/decision";
 import {
   formatRestaurantPrice,
   formatRestaurantPriceSource,
@@ -19,6 +20,7 @@ import {
   Heart,
   MapPin,
   MessageCircle,
+  Navigation,
   Sparkles,
   Star,
   UsersRound,
@@ -47,6 +49,7 @@ export function RestaurantDetailSheet({
   );
   const [imageIndex, setImageIndex] = useState(0);
   const activeImage = images[imageIndex] ?? images[0] ?? "";
+  const amapUrl = restaurant ? getAmapNavigationUrl(restaurant) : null;
 
   useEffect(() => {
     setImageIndex(0);
@@ -61,6 +64,15 @@ export function RestaurantDetailSheet({
   function choose(decision: SwipeDecision) {
     onClose();
     onDecision(decision);
+  }
+
+  function openAmap() {
+    if (!restaurant || !amapUrl) return;
+    window.open(amapUrl, "_blank", "noopener,noreferrer");
+    void trackEvent({
+      eventName: "amap_opened",
+      metadata: { restaurant_id: restaurant.id, entry: "restaurant_detail" }
+    });
   }
 
   return (
@@ -171,6 +183,16 @@ export function RestaurantDetailSheet({
                     {formatRestaurantPriceSource(restaurant)}
                   </span>
                 </div>
+                {amapUrl ? (
+                  <button
+                    type="button"
+                    onClick={openAmap}
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-teal-50 text-sm font-black text-teal-700 ring-1 ring-teal-100"
+                  >
+                    <Navigation size={17} />
+                    打开高德地图
+                  </button>
+                ) : null}
 
                 {likedBy.length > 0 ? (
                   <div className="rounded-lg bg-rose-50 p-4 text-sm font-bold text-rose-500">
