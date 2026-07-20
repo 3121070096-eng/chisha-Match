@@ -3,6 +3,16 @@ import type { RoomLocation } from "@/data/locations";
 
 export type SwipeDecision = "like" | "skip";
 
+export type DiningScenario =
+  | "casual"
+  | "friends"
+  | "date"
+  | "colleagues"
+  | "celebration"
+  | "solo"
+  | "late_night"
+  | "afternoon_tea";
+
 export type CurrentUser = {
   id: string;
   nickname: string;
@@ -28,6 +38,9 @@ export type Room = {
   participants: number;
   status?: "open" | "choosing" | "matched" | "decided" | "closed";
   restaurantSource?: "local_pack" | "api" | "api_fallback" | string;
+  diningScenario?: DiningScenario;
+  restaurantPoolConfirmedAt?: string | null;
+  restaurantPoolRefreshCount?: number;
   createdAt: string;
   createdByMemberId?: string | null;
   finalRestaurantId?: string | null;
@@ -59,6 +72,7 @@ export type CreateRoomInput = {
   budget: number;
   cuisines: string[];
   participants: number;
+  diningScenario: DiningScenario;
 };
 
 export type MatchItem = {

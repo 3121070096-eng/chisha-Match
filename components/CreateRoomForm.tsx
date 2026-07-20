@@ -7,6 +7,10 @@ import {
   type RoomLocation
 } from "@/data/locations";
 import { FlowProgress } from "@/components/FlowProgress";
+import {
+  defaultDiningScenario,
+  diningScenarioOptions
+} from "@/data/diningScenarios";
 import { cuisines } from "@/data/restaurants";
 import { trackEvent } from "@/lib/analytics";
 import type { CreateRoomInput } from "@/types";
@@ -67,6 +71,7 @@ export function CreateRoomForm({
   const [selectedCuisines, setSelectedCuisines] = useState<string[]>(
     initialCuisines && initialCuisines.length > 0 ? initialCuisines : defaultCuisines
   );
+  const [diningScenario, setDiningScenario] = useState(defaultDiningScenario);
   const busy = Boolean(disabled || locating || searching || submitResolving);
 
   function toggleCuisine(cuisine: string) {
@@ -246,7 +251,8 @@ export function CreateRoomForm({
       locationMeta: finalLocation,
       budget,
       participants,
-      cuisines: selectedCuisines
+      cuisines: selectedCuisines,
+      diningScenario
     });
   }
 
@@ -402,11 +408,43 @@ export function CreateRoomForm({
           </div>
         </div>
 
+        <section className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
+          <div className="flex items-center gap-2 text-sm font-black text-slate-700">
+            <Users size={18} className="text-teal-500" />
+            4. 这次是什么饭局？
+          </div>
+          <p className="mt-1 text-xs font-bold leading-5 text-slate-400">
+            会影响附近餐厅的筛选与排序，不会额外增加填写负担。
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {diningScenarioOptions.map((option) => {
+              const active = diningScenario === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setDiningScenario(option.value)}
+                  className={`rounded-full px-3 py-2 text-xs font-black transition ${
+                    active
+                      ? "bg-slate-950 text-white shadow-md shadow-slate-950/15"
+                      : "bg-slate-50 text-slate-600 ring-1 ring-teal-900/10"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-3 rounded-lg bg-teal-50 px-3 py-2 text-xs font-bold text-teal-700">
+            {diningScenarioOptions.find((item) => item.value === diningScenario)?.hint}
+          </p>
+        </section>
+
         <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-black text-slate-700">
               <Wallet size={18} className="text-teal-500" />
-              4. 人均预算
+              5. 人均预算
             </div>
             <div className="text-2xl font-black text-teal-600">¥{budget}</div>
           </div>
@@ -430,7 +468,7 @@ export function CreateRoomForm({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-black text-slate-700">
               <Users size={18} className="text-teal-500" />
-              参与人数
+              6. 参与人数
             </div>
             <div className="flex items-center gap-3">
               <button

@@ -107,7 +107,7 @@ export default function HomePage() {
     <AppChrome
       rightSlot={
         <div className="rounded-full bg-teal-50 px-3 py-2 text-xs font-black text-teal-800 ring-1 ring-teal-200">
-          Beta
+          V4.2 Beta
         </div>
       }
     >
@@ -138,7 +138,7 @@ export default function HomePage() {
               Match!
             </div>
             <div className="absolute inset-x-0 bottom-0 p-6">
-              <p className="text-xs font-black tracking-[0.12em] text-teal-50">吃啥 Match · Beta</p>
+              <p className="text-xs font-black tracking-[0.12em] text-teal-50">吃啥 Match · V4.2 Beta</p>
               <h1 className="mt-3 text-4xl font-black leading-[1.06] text-white">
                 像交友软件一样，
                 <span className="block">和朋友一起滑餐厅</span>

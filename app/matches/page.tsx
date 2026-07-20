@@ -506,7 +506,8 @@ export default function MatchesPage() {
           qualityContext={{
             locationLabel: room.location,
             cuisinePreference: room.cuisines[0],
-            budget: room.budget
+            budget: room.budget,
+            diningScenario: room.diningScenario
           }}
           recommendation={recommendation}
           decisionVoteCounts={decisionVoteCounts}

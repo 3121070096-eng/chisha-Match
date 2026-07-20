@@ -26,6 +26,9 @@ export type Database = {
           location_radius_m: number | null;
           location_source: string | null;
           share_token: string | null;
+          dining_scenario: string | null;
+          restaurant_pool_confirmed_at: string | null;
+          restaurant_pool_refresh_count: number | null;
           created_at: string;
         };
         Insert: {
@@ -44,6 +47,9 @@ export type Database = {
           location_radius_m?: number | null;
           location_source?: string | null;
           share_token?: string | null;
+          dining_scenario?: string | null;
+          restaurant_pool_confirmed_at?: string | null;
+          restaurant_pool_refresh_count?: number | null;
           created_at?: string;
         };
         Update: {
@@ -62,6 +68,9 @@ export type Database = {
           location_radius_m?: number | null;
           location_source?: string | null;
           share_token?: string | null;
+          dining_scenario?: string | null;
+          restaurant_pool_confirmed_at?: string | null;
+          restaurant_pool_refresh_count?: number | null;
           created_at?: string;
         };
         Relationships: [];
@@ -146,6 +155,8 @@ export type Database = {
           room_id: string | null;
           rating: "good" | "ok" | "bad";
           comment: string | null;
+          improvement_area: string | null;
+          decision_satisfaction: number | null;
           created_at: string;
         };
         Insert: {
@@ -153,6 +164,8 @@ export type Database = {
           room_id?: string | null;
           rating: "good" | "ok" | "bad";
           comment?: string | null;
+          improvement_area?: string | null;
+          decision_satisfaction?: number | null;
           created_at?: string;
         };
         Update: {
@@ -160,6 +173,8 @@ export type Database = {
           room_id?: string | null;
           rating?: "good" | "ok" | "bad";
           comment?: string | null;
+          improvement_area?: string | null;
+          decision_satisfaction?: number | null;
           created_at?: string;
         };
         Relationships: [

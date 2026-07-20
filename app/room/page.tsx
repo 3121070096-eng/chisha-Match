@@ -3,6 +3,8 @@
 import { AppChrome } from "@/components/AppChrome";
 import { EmptyState } from "@/components/EmptyState";
 import { FlowProgress } from "@/components/FlowProgress";
+import { RestaurantPoolPreview } from "@/components/RestaurantPoolPreview";
+import { getDiningScenarioOption } from "@/data/diningScenarios";
 import { getRestaurantAreaKey, getRestaurantAreaLabel } from "@/data/restaurants";
 import { trackEvent } from "@/lib/analytics";
 import { getRoomAccessFromUrl, getRoomHref } from "@/lib/roomUrl";
@@ -179,6 +181,7 @@ export default function RoomPage() {
   }, [refreshRoomForMember, room?.databaseId, roomCode]);
 
   const inviteLink = getRoomInviteLink(room?.id ?? "", room?.shareToken);
+  const isRoomOwner = Boolean(currentMember && members[0]?.id === currentMember.id);
 
   useEffect(() => {
     if (!room || !currentMember || room.status !== "decided") return;
@@ -372,6 +375,9 @@ export default function RoomPage() {
               <div>
                 <p className="text-sm font-black text-teal-100">#{room.id}</p>
                 <h1 className="mt-2 text-3xl font-black leading-tight">{room.name}</h1>
+                <p className="mt-2 inline-flex rounded-full bg-white/14 px-2.5 py-1 text-xs font-black text-teal-50">
+                  {getDiningScenarioOption(room.diningScenario).label}
+                </p>
               </div>
               <div className="grid size-12 place-items-center rounded-full bg-white/18">
                 <Sparkles size={23} />
@@ -457,6 +463,18 @@ export default function RoomPage() {
             </div>
           ) : null}
 
+          {currentMember && isRoomOwner && room.status !== "decided" ? (
+            <RestaurantPoolPreview
+              room={room}
+              currentMember={currentMember}
+              isOwner={isRoomOwner}
+              onRoomChanged={() => {
+                const session = getRoomMemberSession(room.id);
+                if (session) void refreshRoomForMember(room.id, session);
+              }}
+            />
+          ) : null}
+
           <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div className="flex items-center gap-2 text-sm font-black text-slate-700">
@@ -522,15 +540,20 @@ export default function RoomPage() {
           </div>
         </motion.div>
 
-        <div className="safe-bottom mt-auto pt-6">
+          <div className="safe-bottom mt-auto pt-6">
+          {currentMember && room.status !== "decided" && !room.restaurantPoolConfirmedAt ? (
+            <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-center text-xs font-black leading-5 text-amber-800">
+              请先由发起人确认至少 8 家真实餐厅，再一起开始滑。
+            </p>
+          ) : null}
           <button
             type="button"
-            disabled={!currentMember}
+            disabled={!currentMember || (room.status !== "decided" && !room.restaurantPoolConfirmedAt)}
             onClick={handleStartSwiping}
             className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-teal-500 text-base font-black text-white shadow-lg shadow-teal-500/25 transition enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
           >
             <Play size={21} className="fill-white" />
-            {room.status === "decided" ? "查看最终结果" : "开始选择"}
+            {room.status === "decided" ? "查看最终结果" : room.restaurantPoolConfirmedAt ? "开始选择" : "等待确认餐厅"}
           </button>
         </div>
       </section>

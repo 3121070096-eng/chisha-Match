@@ -2,7 +2,8 @@
 
 import { AppChrome } from "@/components/AppChrome";
 import { trackEvent } from "@/lib/analytics";
-import { Play, Plus, Sparkles } from "lucide-react";
+import { ChevronRight, ClipboardCheck, Play, Plus, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -87,6 +88,20 @@ export default function AboutPage() {
             ))}
           </div>
         </section>
+
+        <Link
+          href="/test-guide"
+          className="flex items-center gap-3 rounded-lg bg-teal-50 p-4 text-teal-950 ring-1 ring-teal-100 transition active:scale-[0.99]"
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white text-teal-700 shadow-sm">
+            <ClipboardCheck size={19} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-black">正在做真实用户测试？</span>
+            <span className="mt-1 block text-xs font-bold text-teal-800">查看测试任务、观察重点和记录模板</span>
+          </span>
+          <ChevronRight size={18} className="shrink-0 text-teal-700" />
+        </Link>
 
         <div className="safe-bottom grid grid-cols-2 gap-3 pt-2">
           <button type="button" onClick={createRoom} className="flex h-12 items-center justify-center gap-2 rounded-full bg-teal-500 text-sm font-black text-white shadow-lg shadow-teal-500/25">

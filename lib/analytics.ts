@@ -34,6 +34,7 @@ export type AnalyticsEventName =
   | "swipe_started"
   | "restaurant_liked"
   | "restaurant_passed"
+  | "restaurant_card_exposed"
   | "match_created"
   | "match_modal_viewed"
   | "match_list_cta_clicked"
@@ -48,6 +49,11 @@ export type AnalyticsEventName =
   | "restaurant_cache_written"
   | "room_restaurant_pool_created"
   | "restaurant_pool_quality_checked"
+  | "restaurant_search_plan_created"
+  | "restaurant_pool_confirmed"
+  | "restaurant_pool_refresh_requested"
+  | "restaurant_pool_refreshed"
+  | "restaurant_pool_refresh_failed"
   | "restaurant_pool_completed"
   | "restaurant_pool_fallback_only"
   | "restaurant_image_fallback_used"
@@ -71,6 +77,7 @@ export type AnalyticsEventName =
   | "demo_to_real_room_clicked"
   | "privacy_page_viewed"
   | "about_page_viewed"
+  | "test_guide_viewed"
   | "room_not_found"
   | "invalid_room_token"
   | "restaurant_pool_load_failed"
@@ -88,10 +95,38 @@ export type TrackEventInput = {
 
 export type FeedbackRating = "good" | "ok" | "bad";
 
+export const feedbackImprovementAreas = [
+  { value: "how_it_works", label: "看不懂怎么玩" },
+  { value: "create_room", label: "创建饭局" },
+  { value: "location", label: "选择地点" },
+  { value: "invite", label: "邀请朋友" },
+  { value: "join_room", label: "加入房间" },
+  { value: "swipe", label: "滑餐厅" },
+  { value: "match_list", label: "查看共同心动榜" },
+  { value: "decision", label: "最终决定" },
+  { value: "share", label: "分享结果" },
+  { value: "restaurant_quality", label: "餐厅不够准" },
+  { value: "restaurant_quality_low", label: "餐厅整体质量不高" },
+  { value: "restaurant_few_desirable", label: "真正想去的餐厅太少" },
+  { value: "restaurant_repetitive", label: "餐厅类型太重复" },
+  { value: "budget_mismatch", label: "餐厅不符合预算" },
+  { value: "scenario_mismatch", label: "餐厅不符合饭局场景" },
+  { value: "distance_mismatch", label: "距离不合适" },
+  { value: "restaurant_info_incomplete", label: "信息不完整" },
+  { value: "image_untrustworthy", label: "图片不可信" },
+  { value: "final_result_unsatisfying", label: "最终结果不满意" },
+  { value: "image_performance", label: "图片 / 加载太慢" },
+  { value: "other", label: "其他" }
+] as const;
+
+export type FeedbackImprovementArea = (typeof feedbackImprovementAreas)[number]["value"];
+
 export type SubmitFeedbackInput = {
   roomId?: string | null;
   rating: FeedbackRating;
   comment?: string;
+  improvementArea?: FeedbackImprovementArea | null;
+  decisionSatisfaction?: number | null;
 };
 
 function toJson(metadata?: Record<string, unknown>) {
@@ -122,12 +157,14 @@ export async function trackEvent({
   }
 }
 
-export async function submitFeedback({ roomId, rating, comment }: SubmitFeedbackInput) {
+export async function submitFeedback({ roomId, rating, comment, improvementArea, decisionSatisfaction }: SubmitFeedbackInput) {
   const supabase = getSupabaseClient();
   const insertPayload: Database["public"]["Tables"]["feedback"]["Insert"] = {
     room_id: roomId ?? null,
     rating,
-    comment: comment?.trim() || null
+    comment: comment?.trim() || null,
+    improvement_area: improvementArea ?? null,
+    decision_satisfaction: decisionSatisfaction ?? null
   };
   const { data, error } = await supabase
     .from("feedback")
@@ -143,7 +180,11 @@ export async function submitFeedback({ roomId, rating, comment }: SubmitFeedback
   void trackEvent({
     roomId,
     eventName: "feedback_submitted",
-    metadata: { rating }
+    metadata: {
+      rating,
+      improvement_area: improvementArea ?? null,
+      decision_satisfaction: decisionSatisfaction ?? null
+    }
   });
 
   return data;

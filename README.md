@@ -4,7 +4,7 @@
 
 ## 项目简介
 
-这个 Public Beta 已接入 Supabase，支持真实多人房间、成员加入、滑卡记录、共同心动餐厅榜和最终餐厅选择。V3.0 增加高德 Web 服务 API Spike；V3.4 加入决策面板；V3.5 增加结果分享与饭局复用；V3.6 聚焦新手引导；V4.0 进入公开测试与产品化阶段。
+这个 Public Beta 已接入 Supabase，支持真实多人房间、成员加入、滑卡记录、共同心动餐厅榜和最终餐厅选择。V3.0 增加高德 Web 服务 API Spike；V3.4 加入决策面板；V3.5 增加结果分享与饭局复用；V3.6 聚焦新手引导；V4.0 进入公开测试与产品化阶段；V4.2 聚焦真实餐厅候选池与决策质量。
 
 ## 核心功能
 
@@ -183,6 +183,37 @@ V4.0 的定位是「公开 Beta 与产品化版」：不再堆叠复杂业务，
 
 V4.0 新增事件：`public_beta_home_viewed`、`privacy_page_viewed`、`about_page_viewed`、`room_not_found`、`invalid_room_token`、`restaurant_pool_load_failed`、`supabase_connection_failed`、`debug_page_viewed`、`debug_page_auth_failed`。
 
+## V4.1 真实用户测试与数据复盘
+
+V4.1 不增加新的第三方服务，重点是帮助项目作者判断真实用户能否独立完成一次「创建、邀请、滑卡、Match、决定、分享」的完整流程。
+
+- `/admin-lite` 与兼容路径 `/debug` 新增今日、近 7 天、全部数据筛选，展示首页访问、创建、地点选择、邀请、加入、滑卡、Match、榜单、决策、分享和反馈等测试漏斗。
+- 看板同时展示关键转化率，以及定位、地点搜索、餐厅 API、备用餐厅池、图片、Supabase、邀请 token 和房间不存在等错误 / fallback 事件。
+- 最终结果页的反馈增加可选「你觉得哪一步最需要改进？」字段；反馈会写入 `improvement_area`，`feedback_submitted` 事件 metadata 也会包含该值。
+- 新增 `/test-guide`，包含测试任务、观察重点、建议人数和记录模板；可从 About 或 admin-lite 轻量进入。
+- admin-lite 仍必须使用 `ENABLE_DEBUG_PAGE=true`、`DEBUG_ADMIN_PASSWORD` 与服务端 `SUPABASE_SERVICE_ROLE_KEY`，不会向前端暴露 key 或原始事件 metadata。
+
+真实测试建议：找 3-5 组朋友，每组 2-4 人，不要提前解释太多；观察他们是否自行完成创建、邀请、滑卡、Match、决定和分享。测试后结合 admin-lite 漏斗、错误事件和反馈中的 `improvement_area` 决定下一版优先级。
+
+## V4.2 高质量候选池与决策质量
+
+V4.2 针对真实测试中「餐厅不够像真实可选项、类型重复、为了凑数混进 mock 数据」的问题，收紧真实饭局的候选池策略：
+
+- 创建饭局时新增饭局场景：朋友聚餐、随便吃吃、约会、同事聚餐、庆祝、一个人吃、夜宵、下午茶。场景会参与高德搜索关键词、质量评分和榜单推荐排序。
+- 服务端会用多组关键词检索高德结果，过滤便利店、超市、非餐饮 POI、外卖 / 食堂档口、距离明显不合理的结果，并按距离、菜系、预算、信息完整度与场景匹配评分。
+- 真实房间的固定候选池控制在约 10-18 家；优先去重、控制连锁店与品类重复，尽量保留至少 4 种菜系。真实高德结果不足 8 家时，不会用假餐厅凑数，而是提示换一批或换地点。
+- 发起人可在房间页预览候选池、删除不想要的餐厅（最低保留 8 家）、确认本批餐厅，或最多换两批。确认后，所有成员滑同一批固定餐厅。
+- 换批前如已有滑卡记录，会明确提示并在确认后清空旧 swipes 与二轮投票，避免新旧候选混用。
+- `/admin-lite` 新增候选池质量、右滑率、Match / 最终决定率、换池使用率和饭局场景维度统计；最终反馈可补充候选池质量问题与对最终结果的 1-5 分满意度。
+
+V4.2 需要在 Supabase SQL Editor 执行：
+
+```text
+supabase/migrate-v42-dining-scenario.sql
+```
+
+这个 migration 只增加 `rooms.dining_scenario`、候选池确认 / 换批字段和 `feedback.decision_satisfaction`，不会重建或删除历史数据。请先执行 V4.1 的 feedback migration，再执行 V4.2 migration。V4.2 仍未把高德数据包装成真实平台评价：高德缺失图片、价格或评分时会显示友好待确认状态，模拟食评始终只用于产品体验。
+
 ## 技术栈
 
 - Next.js App Router
@@ -229,6 +260,7 @@ V4.0 新增事件：`public_beta_home_viewed`、`privacy_page_viewed`、`about_p
   - `room_id`
   - `rating`
   - `comment`
+  - `improvement_area`（通过 `supabase/migrate-v41-feedback-step.sql` 增加，可为空）
   - `created_at`
 - `events`（通过 `supabase/migrate-v24-feedback-events.sql` 增加）
   - `id`
@@ -310,6 +342,8 @@ npm run build
    - `supabase/migrate-v34-decision-votes.sql`
    - `supabase/migrate-v40-room-token.sql`
    - `supabase/migrate-v40-security-beta.sql`
+   - `supabase/migrate-v41-feedback-step.sql`
+   - `supabase/migrate-v42-dining-scenario.sql`
 9. 部署完成后，打开线上地址测试创建房间和邀请链接。
 
 不要把 Supabase URL 或 anon key 硬编码到代码、README 或配置文件中。
@@ -320,8 +354,8 @@ npm run build
 
 1. 打开首页，点击「创建饭局」。
 2. 填写饭局信息，使用当前位置、搜索地点或选择热门地点创建房间。
-3. 如果已配置 `AMAP_API_KEY` 和 `SUPABASE_SERVICE_ROLE_KEY`，观察 console 或 `/debug` 中是否出现 `restaurant_api_requested`、`restaurant_api_succeeded`、`restaurant_pool_quality_checked`、`restaurant_pool_completed`、`restaurant_cache_written`。
-4. 如果没有配置高德 key，`/api/restaurants/search` 会返回 `AMAP_API_KEY_NOT_CONFIGURED`，页面仍使用本地地区餐厅包。
+3. 选择饭局场景后创建房间；如果已配置 `AMAP_API_KEY` 和 `SUPABASE_SERVICE_ROLE_KEY`，观察 console 或 `/debug` 中是否出现 `restaurant_api_requested`、`restaurant_search_plan_created`、`restaurant_pool_quality_checked`、`restaurant_cache_written`。
+4. 在房间页预览真实候选餐厅，至少保留 8 家并点击「确认这批餐厅」；若质量不合适，最多可换两批。高德 key 缺失或高质量结果不足时，真实饭局不会用 mock 餐厅凑数，应换地点或稍后重试。
 5. 图片修复部署后建议新建饭局测试，因为旧房间会继续读取之前已经固定的 `room_restaurants` 缓存。
 5. 在房间页点击「复制邀请链接」。
 6. 用隐身窗口或另一台手机打开邀请链接。
@@ -335,14 +369,15 @@ npm run build
 14. 点击「按这次设置再开一局」，确认创建的是一个新房间，且餐厅池会重新生成。
 15. 点击「换个地点再开一局」，确认预算与菜系保留、地点需要重新选择。
 16. 在最终结果页提交一次体验反馈。
-17. 可打开隐藏页 `/debug` 查看 feedback 和 events 是否写入成功。
+17. 在 Supabase SQL Editor 依次执行 `supabase/migrate-v41-feedback-step.sql`、`supabase/migrate-v42-dining-scenario.sql`，再在最终结果页提交一次带「改进步骤」和最终满意度的反馈。
+18. 可打开隐藏页 `/admin-lite` 或 `/debug`，按今日、近 7 天、全部查看测试漏斗、候选池质量、转化率、错误事件、feedback 和 events。
 
-Public Beta 建议找 3-5 组朋友完成一次真实流程：创建饭局、复制邀请链接、两人滑同一家餐厅、查看 Match、最终决定并分享结果。重点观察是否能顺畅完成创建与邀请，是否理解左右滑和 Match，并结合 feedback 与 Admin Lite 中的事件判断卡点。
+Public Beta 建议找 3-5 组朋友完成一次真实流程：创建饭局、复制邀请链接、两人滑同一家餐厅、查看 Match、最终决定并分享结果。每组建议 2-4 人，尽量不提前解释产品；重点观察是否能独立完成创建与邀请、是否理解左右滑和 Match、是否愿意分享结果，再结合 feedback 与 Admin Lite 的漏斗判断卡点。
 
 ## 当前版本限制
 
-- 高德 API 仍可能缺失价格、评分、图片或完整品类；V3.3 会清洗、排序并用体验版本地数据补足，但不代表真实平台评价或价格。
-- 未配置 `AMAP_API_KEY` 或缓存写入失败时，餐厅仍为本地 mock 数据，按地点拆分为多个体验版餐厅池。
+- 高德 API 仍可能缺失价格、评分、图片或完整品类；V4.2 会清洗、排序并优先展示真实餐厅，但不代表真实平台评价或价格。
+- Demo 与旧饭局仍可使用本地体验餐厅池；V4.2 新建真实饭局在高质量真实结果不足时不会以 mock 餐厅补数，而是提示换地点或稍后重试。
 - 暂未做正式登录，成员身份由 localStorage 模拟。
 - Demo RLS 权限较开放，不适合直接作为正式生产权限策略。
 - V4.0 的 share token 是轻量访问控制，不是完整登录系统；正式上线前需要 Supabase Auth、成员级权限和服务端签名访问。

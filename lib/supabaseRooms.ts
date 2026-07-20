@@ -62,6 +62,9 @@ function isRoomSchemaMissing(error: unknown) {
     message.includes("location_radius_m") ||
     message.includes("location_source") ||
     message.includes("share_token") ||
+    message.includes("dining_scenario") ||
+    message.includes("restaurant_pool_confirmed_at") ||
+    message.includes("restaurant_pool_refresh_count") ||
     message.includes("schema cache")
   );
 }
@@ -92,6 +95,9 @@ function mapRoom(row: RoomRow): Room {
     participants: 0,
     status: row.status,
     restaurantSource: row.restaurant_source ?? "local_pack",
+    diningScenario: row.dining_scenario as Room["diningScenario"],
+    restaurantPoolConfirmedAt: row.restaurant_pool_confirmed_at ?? null,
+    restaurantPoolRefreshCount: row.restaurant_pool_refresh_count ?? 0,
     createdAt: row.created_at,
     finalRestaurantId: row.final_restaurant_id,
     friends: []
@@ -190,7 +196,8 @@ export async function createSupabaseRoom(input: CreateRoomInput, user: CurrentUs
     budget: input.budget,
     cuisine_preference: input.cuisines,
     status: "open",
-    restaurant_source: "local_pack"
+    restaurant_source: "local_pack",
+    dining_scenario: input.diningScenario
   };
   const locationMeta = input.locationMeta;
   const shareToken = makeRoomShareToken();

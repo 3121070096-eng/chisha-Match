@@ -1,6 +1,11 @@
 "use client";
 
-import { submitFeedback, type FeedbackRating } from "@/lib/analytics";
+import {
+  feedbackImprovementAreas,
+  submitFeedback,
+  type FeedbackImprovementArea,
+  type FeedbackRating
+} from "@/lib/analytics";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
 import { MessageCircleHeart, Send } from "lucide-react";
 import { useState } from "react";
@@ -18,6 +23,8 @@ const ratingOptions: Array<{ value: FeedbackRating; label: string }> = [
 export function FeedbackPanel({ roomId }: FeedbackPanelProps) {
   const [rating, setRating] = useState<FeedbackRating | null>(null);
   const [comment, setComment] = useState("");
+  const [improvementArea, setImprovementArea] = useState<FeedbackImprovementArea | "">("");
+  const [decisionSatisfaction, setDecisionSatisfaction] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -29,7 +36,13 @@ export function FeedbackPanel({ roomId }: FeedbackPanelProps) {
     setError("");
 
     try {
-      await submitFeedback({ roomId, rating, comment });
+      await submitFeedback({
+        roomId,
+        rating,
+        comment,
+        improvementArea: improvementArea || null,
+        decisionSatisfaction
+      });
       setSuccess(true);
     } catch (feedbackError) {
       console.error("[FeedbackPanel] submit failed", feedbackError);
@@ -71,6 +84,41 @@ export function FeedbackPanel({ roomId }: FeedbackPanelProps) {
                 </button>
               );
             })}
+          </div>
+          <label className="mt-3 block text-xs font-black text-slate-700">
+            你觉得哪一步最需要改进？<span className="ml-1 text-slate-400">可不填</span>
+            <select
+              value={improvementArea}
+              onChange={(event) => setImprovementArea(event.target.value as FeedbackImprovementArea | "")}
+              className="mt-2 h-11 w-full rounded-lg border border-teal-900/10 bg-slate-50 px-3 text-sm font-bold text-slate-700 outline-none focus:border-teal-400 focus:bg-white"
+            >
+              <option value="">暂不选择</option>
+              {feedbackImprovementAreas.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          <div className="mt-3">
+            <p className="text-xs font-black text-slate-700">
+              你对最后选出的餐厅满意吗？<span className="ml-1 text-slate-400">可不填</span>
+            </p>
+            <div className="mt-2 flex gap-2">
+              {[1, 2, 3, 4, 5].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setDecisionSatisfaction(value)}
+                  className={`grid size-9 place-items-center rounded-full text-sm font-black transition ${
+                    decisionSatisfaction === value
+                      ? "bg-amber-400 text-amber-950"
+                      : "bg-slate-50 text-slate-500 ring-1 ring-slate-200/80"
+                  }`}
+                  aria-label={`${value} 分`}
+                >
+                  {value}
+                </button>
+              ))}
+            </div>
           </div>
           <textarea
             value={comment}

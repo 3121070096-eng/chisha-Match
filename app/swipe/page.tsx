@@ -270,6 +270,22 @@ export default function SwipePage() {
   const currentRestaurant = deckRestaurants[0] ?? null;
 
   useEffect(() => {
+    if (!room || !currentMember || !currentRestaurant) return;
+    const exposureKey = "chisha:event:restaurant-exposed:" + room.id + ":" + currentMember.id + ":" + currentRestaurant.id;
+    if (!markOnce(exposureKey)) return;
+    void trackEvent({
+      roomId: room.id,
+      memberId: currentMember.id,
+      eventName: "restaurant_card_exposed",
+      metadata: {
+        restaurant_id: currentRestaurant.id,
+        restaurant_name: currentRestaurant.name,
+        dining_scenario: room.diningScenario ?? "friends",
+      },
+    });
+  }, [currentMember, currentRestaurant, room]);
+
+  useEffect(() => {
     if (!room || !currentMember || !restaurantSource) return;
 
     if (markOnce(`chisha:event:swipe_started:${room.id}:${currentMember.id}`)) {

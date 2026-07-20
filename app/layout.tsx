@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "吃啥 Match · Public Beta",
+  title: "吃啥 Match · V4.2 Public Beta",
   description: "像交友软件一样，和朋友一起滑餐厅的聚餐决策工具"
 };
 

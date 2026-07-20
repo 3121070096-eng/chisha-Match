@@ -14,7 +14,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import type { Room } from "@/types";
 import type { Database } from "@/types/supabase";
 
-export type RestaurantSource = "local_pack" | "api" | "api_fallback";
+export type RestaurantSource = "local_pack" | "api" | "api_fallback" | "api_unavailable";
 
 export type RestaurantSourceResult = {
   restaurants: Restaurant[];
@@ -42,6 +42,8 @@ type RoomReference = Pick<
   | "restaurantSource"
   | "cuisines"
   | "budget"
+  | "diningScenario"
+  | "shareToken"
 >;
 
 type RoomReferenceRow = {
@@ -56,11 +58,13 @@ type RoomReferenceRow = {
   location_lng?: number | null;
   location_radius_m?: number | null;
   location_source?: string | null;
+  dining_scenario?: string | null;
+  share_token?: string | null;
 };
 
 export type RestaurantApiSearchResult = {
   ok: boolean;
-  source: "amap" | "local_fallback";
+  source: "amap" | "cache" | "none" | "local_fallback";
   restaurants: Restaurant[];
   error?: string;
   reason?: string;
@@ -106,6 +110,8 @@ function isLocationSchemaMissing(error: unknown) {
     message.includes("location_lng") ||
     message.includes("location_radius_m") ||
     message.includes("location_source") ||
+    message.includes("dining_scenario") ||
+    message.includes("share_token") ||
     message.includes("schema cache")
   );
 }
@@ -150,7 +156,7 @@ export function resolveRestaurantSourceForLocation(
       locationLabel: location,
       cuisinePreference: context.cuisinePreference,
       budget: context.budget,
-      targetCount: 20
+      targetCount: 14
     }
   ).restaurants;
 
@@ -176,7 +182,7 @@ export function getLocalRestaurantsForRoom(
 async function loadRoomReference(roomId: string): Promise<RoomReference | null> {
   const supabase = getSupabaseClient();
   const extendedSelect =
-    "id, location, budget, restaurant_source, cuisine_preference, location_area_key, location_city, location_lat, location_lng, location_radius_m, location_source";
+    "id, location, budget, restaurant_source, cuisine_preference, location_area_key, location_city, location_lat, location_lng, location_radius_m, location_source, dining_scenario, share_token";
   const legacySelect = "id, location, budget, restaurant_source, cuisine_preference";
   const extendedResult = await supabase
     .from("rooms")
@@ -212,7 +218,9 @@ async function loadRoomReference(roomId: string): Promise<RoomReference | null> 
     locationMeta: mapLocationMeta(data),
     restaurantSource: data.restaurant_source ?? "local_pack",
     cuisines: data.cuisine_preference ?? [],
-    budget: data.budget
+    budget: data.budget,
+    diningScenario: data.dining_scenario as Room["diningScenario"],
+    shareToken: data.share_token ?? null
   };
 }
 
@@ -273,6 +281,18 @@ export async function getRestaurantSourceForRoom(
     };
   }
 
+  if (room.restaurantSource === "api_unavailable") {
+    const areaKey = getRestaurantAreaKey(room.location);
+    return {
+      restaurants: [],
+      areaKey,
+      requestedAreaKey: areaKey,
+      restaurantSource: "api_unavailable",
+      fallbackUsed: false,
+      fallbackAreaKey: DEFAULT_RESTAURANT_AREA
+    };
+  }
+
   return getLocalRestaurantsForRoom(room);
 }
 
@@ -302,16 +322,17 @@ export async function prepareRestaurantPoolForRoom(
         locationLabel: locationMeta?.locationLabel ?? room.location,
         lat: locationMeta?.lat,
         lng: locationMeta?.lng,
-        keyword: "餐厅",
         radiusM: locationMeta?.radiusM ?? DEFAULT_RADIUS_M,
-        cuisinePreference: room.cuisines?.[0],
-        budget: room.budget
+        cuisinePreferences: room.cuisines,
+        budget: room.budget,
+        diningScenario: room.diningScenario,
+        accessToken: room.shareToken ?? undefined
       })
     });
     const payload = (await response.json()) as RestaurantApiSearchResult;
 
     if (!response.ok || !payload.ok) {
-      console.info("[RestaurantSource] use local restaurant fallback", {
+      console.info("[RestaurantSource] real restaurant pool unavailable", {
         status: response.status,
         reason: payload.reason,
         error: payload.error

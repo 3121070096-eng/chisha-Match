@@ -83,8 +83,9 @@ function CreateRoomContent() {
           lng: room.locationMeta?.lng,
           budget: room.budget,
           cuisine_preference: room.cuisines,
+          dining_scenario: room.diningScenario,
           restaurant_source:
-            restaurantApiResult.source === "amap" ? "api" : "api_fallback",
+            restaurantApiResult.ok ? "api" : "api_unavailable",
           restaurant_api_reason: restaurantApiResult.reason
         }
       });

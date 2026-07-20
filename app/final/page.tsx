@@ -347,7 +347,8 @@ export default function FinalPage() {
       locationMeta: room.locationMeta,
       budget: room.budget,
       cuisines: room.cuisines,
-      participants: room.participants || 4
+      participants: room.participants || 4,
+      diningScenario: room.diningScenario ?? "friends"
     };
 
     try {
