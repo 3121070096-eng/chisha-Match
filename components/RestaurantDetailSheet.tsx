@@ -153,33 +153,24 @@ export function RestaurantDetailSheet({
                     <Utensils size={16} />
                     {restaurant.cuisine}
                   </div>
-                  <h2 className="mt-3 text-3xl font-black leading-tight">
+                  <h2 className="mt-3 line-clamp-2 break-words text-3xl font-bold leading-tight">
                     {restaurant.name}
                   </h2>
                 </div>
               </div>
 
               <div className="space-y-4 px-5 pt-5">
-                <div className="grid grid-cols-3 gap-2 text-sm font-black text-slate-700">
-                  <div className="rounded-lg bg-amber-50 p-3 text-amber-700">
-                    <Star size={17} className="fill-amber-400 text-amber-400" />
-                    <p className="mt-2">{formatRestaurantRating(restaurant)}</p>
-                  </div>
-                  <div className="rounded-lg bg-teal-50 p-3 text-teal-700">
-                    <Wallet size={17} />
-                    <p className="mt-2">{formatRestaurantPrice(restaurant)}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <MapPin size={17} />
-                    <p className="mt-2">{restaurant.distance}</p>
-                  </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-2 border-b border-slate-100 pb-4 text-sm font-semibold text-slate-700">
+                  <span className="inline-flex items-center gap-1.5 text-amber-700"><Star size={16} className="fill-amber-400 text-amber-400" />{formatRestaurantRating(restaurant)}</span>
+                  <span className="inline-flex items-center gap-1.5"><Wallet size={16} className="text-teal-700" />{formatRestaurantPrice(restaurant)}</span>
+                  <span className="inline-flex min-w-0 items-center gap-1.5 break-words"><MapPin size={16} className="shrink-0 text-teal-700" />{restaurant.distance}</span>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 text-xs font-black text-slate-500">
-                  <span className="rounded-full bg-slate-100 px-3 py-2">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
+                  <span>
                     {getRestaurantDataSourceLabel(restaurant)}
                   </span>
-                  <span className="rounded-full bg-slate-100 px-3 py-2">
+                  <span>
                     {formatRestaurantPriceSource(restaurant)}
                   </span>
                 </div>
@@ -200,7 +191,7 @@ export function RestaurantDetailSheet({
                       <UsersRound size={17} />
                       已有 {likedBy.length} 人喜欢
                     </div>
-                    <p className="mt-2 leading-6">{likedBy.join("、")}</p>
+                    <p className="mt-2 break-words leading-6">{likedBy.join("、")}</p>
                   </div>
                 ) : null}
 

@@ -13,7 +13,6 @@ import { motion } from "framer-motion";
 import {
   Check,
   Copy,
-  Crown,
   Dices,
   Heart,
   MapPin,
@@ -109,25 +108,16 @@ export function MatchList({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto pb-3 no-scrollbar">
-      <div className="mb-4 overflow-hidden rounded-lg bg-slate-950 p-5 text-white shadow-[0_20px_56px_rgba(15,23,42,0.18)]">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-black text-teal-200">共同心动餐厅榜</p>
-            <h1 className="mt-1 text-3xl font-black">{items.length} 家入围</h1>
-          </div>
-          <div className="grid size-12 place-items-center rounded-full bg-amber-400 text-slate-950">
-            <Crown size={24} className="fill-slate-950" />
-          </div>
-        </div>
-        <p className="mt-4 text-sm font-semibold leading-6 text-slate-300">
-          这些是你们都愿意去的餐厅，选一家就可以出发啦。
-        </p>
+      <div className="mb-4 border-b border-slate-200 pb-4 pt-1">
+        <p className="text-xs font-semibold text-teal-800">你们的共同心动</p>
+        <h1 className="mt-1 text-2xl font-bold text-slate-950">{items.length} 家餐厅入围</h1>
+        <p className="mt-1 text-sm text-slate-600">按共识排序，挑一家就出发。</p>
       </div>
 
       {isDecided ? (
         <section className="mb-4 rounded-lg bg-teal-600 p-4 text-white shadow-[0_16px_38px_rgba(13,148,136,0.22)]">
           <p className="text-xs font-black text-teal-100">饭局已决定</p>
-          <h2 className="mt-1 text-xl font-black">今晚就吃 {decidedRestaurantName ?? "这家"}</h2>
+          <h2 className="mt-1 break-words text-xl font-bold">今晚就吃 {decidedRestaurantName ?? "这家"}</h2>
           <div className="mt-4 grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -161,7 +151,7 @@ export function MatchList({
               onError={(event) => useFallbackImage(event.currentTarget, recommendation.item.restaurant)}
             />
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-lg font-black text-slate-950">
+              <h2 className="line-clamp-2 break-words text-base font-bold text-slate-950">
                 {recommendation.item.restaurant.name}
               </h2>
               <p className="mt-1 text-xs font-bold leading-5 text-slate-600">
@@ -205,7 +195,7 @@ export function MatchList({
           {randomResult ? (
             <div className="mt-3 rounded-lg bg-amber-50 p-3 ring-1 ring-amber-100">
               <p className="text-xs font-black text-amber-700">别纠结了，今晚就它吧！</p>
-              <p className="mt-1 text-lg font-black text-slate-950">{randomResult.restaurant.name}</p>
+              <p className="mt-1 break-words text-lg font-bold text-slate-950">{randomResult.restaurant.name}</p>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -248,10 +238,10 @@ export function MatchList({
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.04 }}
-              className={`overflow-hidden rounded-lg bg-white shadow-sm ring-1 ${
+              className={`overflow-hidden rounded-lg bg-white ring-1 ${
                 isTop
-                  ? "ring-amber-300 shadow-[0_20px_56px_rgba(245,158,11,0.16)]"
-                  : "ring-teal-900/5"
+                  ? "ring-amber-300"
+                  : "ring-slate-200"
               }`}
             >
               <div className="relative h-40">
@@ -271,60 +261,45 @@ export function MatchList({
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 to-transparent" />
                 <div className="absolute left-3 top-3 flex flex-wrap gap-2">
-                  <span className={`rounded-full px-3 py-2 text-sm font-black ${isTop ? "bg-amber-400 text-slate-950" : "bg-white text-slate-800"}`}>
-                    TOP {rank}
+                  <span className={`rounded-full px-3 py-1.5 text-xs font-semibold ${isTop ? "bg-amber-400 text-slate-950" : "bg-white text-slate-800"}`}>
+                    #{rank}
                   </span>
                   {labels.slice(0, 2).map((label) => (
-                    <span key={label} className="rounded-full bg-white/92 px-3 py-2 text-xs font-black text-teal-700 backdrop-blur">
+                    <span key={label} className="rounded-full bg-white/92 px-3 py-1.5 text-xs font-semibold text-teal-800 backdrop-blur">
                       {label}
                     </span>
                   ))}
                 </div>
                 <div className="absolute bottom-4 left-4 right-4 text-white">
-                  <h2 className="truncate text-2xl font-black">{restaurant.name}</h2>
-                  <p className="mt-1 text-sm font-black text-teal-100">
+                  <h2 className="line-clamp-2 break-words text-xl font-bold leading-tight">{restaurant.name}</h2>
+                  <p className="mt-1 text-xs font-medium text-teal-50">
                     {restaurant.cuisine}
                   </p>
                 </div>
               </div>
 
               <div className="p-4">
-                <div className="grid grid-cols-4 gap-2 text-xs font-black text-slate-600">
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-teal-50 px-2 py-2 text-teal-700">
-                    <UsersRound size={14} />
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-medium text-slate-700">
+                  <span className="inline-flex items-center gap-1 font-semibold text-teal-800">
+                    <UsersRound size={14} className="shrink-0" />
                     {match.count} 人
                   </span>
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-2 text-amber-700">
-                    <Star size={14} className="fill-amber-400 text-amber-400" />
+                  <span className="inline-flex items-center gap-1">
+                    <Star size={14} className="shrink-0 fill-amber-400 text-amber-500" />
                     {formatRestaurantRating(restaurant)}
                   </span>
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-2 py-2">
-                    <Wallet size={14} />
+                  <span className="inline-flex items-center gap-1">
+                    <Wallet size={14} className="shrink-0" />
                     {formatRestaurantPrice(restaurant, "")}
                   </span>
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-2 py-2">
-                    <MapPin size={14} />
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin size={14} className="shrink-0" />
                     {restaurant.distance}
                   </span>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {labels.slice(2).map((highlight) => (
-                    <span
-                      key={highlight}
-                      className="rounded-full bg-teal-50 px-3 py-1.5 text-xs font-black text-teal-700"
-                    >
-                      {highlight}
-                    </span>
-                  ))}
-                  {match.likedBy.map((name) => (
-                    <span
-                      key={name}
-                      className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600"
-                    >
-                      {name}
-                    </span>
-                  ))}
-                </div>
+                <p className="mt-3 break-words border-t border-slate-100 pt-3 text-xs leading-5 text-slate-600">
+                  一起喜欢：{match.likedBy.join("、")}
+                </p>
               </div>
 
               {!isDecided && onVote ? (

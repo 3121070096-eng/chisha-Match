@@ -22,22 +22,22 @@ export default function PrivacyPage() {
 
   return (
     <AppChrome showBack title="隐私与数据说明">
-      <section className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 pb-7 pt-2 no-scrollbar">
-        <div className="rounded-lg bg-slate-950 p-5 text-white shadow-[0_20px_56px_rgba(15,23,42,0.18)]">
-          <div className="flex items-center gap-2 text-sm font-black text-teal-100">
+      <section className="flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto px-5 pb-7 pt-2 no-scrollbar">
+        <div className="border-b border-slate-200 pb-5 pt-3">
+          <div className="flex items-center gap-2 text-xs font-semibold text-teal-800">
             <ShieldCheck size={18} />
             Public Beta 的简单说明
           </div>
-          <h1 className="mt-3 text-3xl font-black">放心一起选，少收集一点</h1>
-          <p className="mt-3 text-sm font-semibold leading-6 text-slate-300">
+          <h1 className="mt-3 text-2xl font-bold text-slate-950">放心一起选，少收集一点</h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
             我们只保留让饭局正常运转、帮助产品继续变好的必要数据。
           </p>
         </div>
 
         {sections.map(([title, text]) => (
-          <section key={title} className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
-            <h2 className="text-base font-black text-slate-950">{title}</h2>
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{text}</p>
+          <section key={title} className="border-b border-slate-200 py-4">
+            <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
+            <p className="mt-1.5 text-sm leading-6 text-slate-600">{text}</p>
           </section>
         ))}
       </section>

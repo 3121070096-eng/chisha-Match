@@ -33,7 +33,7 @@ export function BottomNav({ roomId, active }: BottomNavProps) {
   ] as const;
 
   return (
-    <nav className="safe-bottom grid grid-cols-3 gap-2 border-t border-teal-900/5 bg-white/85 px-4 pt-3 backdrop-blur">
+    <nav className="safe-bottom grid grid-cols-3 gap-1 border-t border-slate-200 bg-[#fbfcfa] px-4 pt-2">
       {items.map((item) => {
         const Icon = item.icon;
         const isActive = active === item.key;
@@ -43,10 +43,10 @@ export function BottomNav({ roomId, active }: BottomNavProps) {
             key={item.key}
             type="button"
             onClick={() => router.push(item.href)}
-            className={`flex h-12 items-center justify-center gap-2 rounded-full text-sm font-extrabold transition ${
+            className={`flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-full text-xs font-semibold transition ${
               isActive
-                ? "bg-teal-500 text-white shadow-lg shadow-teal-500/25"
-                : "bg-slate-100 text-slate-600"
+                ? "bg-teal-700 text-white"
+                : "text-slate-600"
             }`}
           >
             <Icon size={17} />

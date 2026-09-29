@@ -95,7 +95,7 @@ export const RestaurantCard = memo(function RestaurantCard({
   }
 
   return (
-    <div className="relative h-full min-h-[520px]">
+    <div className="relative h-full min-h-0">
       <motion.article
         drag="x"
         dragElastic={0.18}
@@ -119,9 +119,9 @@ export const RestaurantCard = memo(function RestaurantCard({
         }}
         animate={controls}
         style={{ x, rotate }}
-        className="absolute inset-0 overflow-hidden rounded-lg bg-white shadow-[0_26px_70px_rgba(15,118,110,0.22)] ring-1 ring-teal-900/10"
+        className="absolute inset-0 overflow-hidden rounded-lg bg-white shadow-[0_12px_36px_rgba(14,57,52,0.16)] ring-1 ring-teal-900/10"
       >
-        <div className="relative h-[82%] overflow-hidden bg-teal-100">
+        <div className="relative h-[calc(100%-104px)] overflow-hidden bg-teal-100">
           <div className="absolute left-3 right-3 top-3 z-40 flex gap-1.5">
             {images.map((image) => (
               <span
@@ -170,9 +170,9 @@ export const RestaurantCard = memo(function RestaurantCard({
             }}
           />
           <div className="pointer-events-none absolute inset-0 z-20 bg-gradient-to-t from-slate-950/76 via-slate-950/10 to-transparent" />
-          <div className="absolute left-4 top-4 z-30 flex items-center gap-2 rounded-full bg-white/92 px-3 py-2 text-sm font-black text-teal-700 shadow-sm backdrop-blur">
-            <Utensils size={16} />
-            {restaurant.cuisine}
+          <div className="absolute left-4 top-4 z-30 flex max-w-[calc(100%-2rem)] items-center gap-1.5 rounded-full bg-white/92 px-3 py-1.5 text-xs font-semibold text-teal-900 backdrop-blur">
+            <Utensils size={14} className="shrink-0" />
+            <span className="truncate">{restaurant.cuisine}</span>
           </div>
           <motion.div
             style={{ opacity: likeOpacity, scale: likeScale }}
@@ -204,7 +204,7 @@ export const RestaurantCard = memo(function RestaurantCard({
             }}
             className="absolute bottom-24 right-0 top-8 z-30 w-1/2"
           />
-          <div className="absolute inset-x-0 bottom-4 z-30 px-5 text-white">
+          <div className="absolute inset-x-0 bottom-4 z-30 px-4 text-white">
             <button
               type="button"
               onPointerDown={(event) => event.stopPropagation()}
@@ -214,26 +214,26 @@ export const RestaurantCard = memo(function RestaurantCard({
               }}
               className="max-w-full text-left"
             >
-              <h2 className="text-3xl font-black leading-tight">{restaurant.name}</h2>
+              <h2 className="line-clamp-2 break-words text-[27px] font-bold leading-tight">{restaurant.name}</h2>
             </button>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-bold text-white/92">
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-white/95">
               <span className="inline-flex items-center gap-1">
-                <Star size={16} className="fill-amber-300 text-amber-300" />
+                <Star size={14} className="fill-amber-300 text-amber-300" />
                 {formatRestaurantRating(restaurant)}
               </span>
               <span className="inline-flex items-center gap-1">
-                <MapPin size={16} />
+                <MapPin size={14} />
                 {restaurant.distance}
               </span>
               <span className="inline-flex items-center gap-1">
-                <Wallet size={16} />
+                <Wallet size={14} />
                 {formatRestaurantPrice(restaurant)}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="flex h-[18%] flex-col justify-center p-3.5">
+        <div className="flex h-[104px] flex-col justify-center px-3 py-2.5">
           <div>
             <button
               type="button"
@@ -242,7 +242,7 @@ export const RestaurantCard = memo(function RestaurantCard({
                 event.stopPropagation();
                 openDetails();
               }}
-              className="flex w-full items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-left text-sm font-extrabold text-slate-600 ring-1 ring-slate-200/70"
+              className="flex w-full items-center justify-between gap-3 px-1 py-1.5 text-left text-sm font-semibold text-teal-800"
             >
               <span className="inline-flex min-w-0 items-center gap-2">
                 <Info size={16} className="shrink-0 text-teal-500" />
@@ -250,11 +250,11 @@ export const RestaurantCard = memo(function RestaurantCard({
               </span>
               <ChevronRight size={17} className="shrink-0 text-slate-400" />
             </button>
-            <div className="mt-2.5 flex flex-wrap gap-2">
+            <div className="mt-1.5 flex min-w-0 flex-wrap gap-1.5 overflow-hidden">
               {restaurant.tags.slice(0, 2).map((tag) => (
                 <span
                   key={tag}
-                  className="rounded-full bg-teal-50 px-3 py-1.5 text-xs font-bold text-teal-700 ring-1 ring-teal-100"
+                  className="max-w-[48%] truncate rounded-full bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-800"
                 >
                   {tag}
                 </span>

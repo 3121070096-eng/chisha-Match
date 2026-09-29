@@ -3,9 +3,7 @@
 import { AppChrome } from "@/components/AppChrome";
 import { getRestaurantAreaKey, getRestaurantAreaLabel } from "@/data/restaurants";
 import { trackEvent } from "@/lib/analytics";
-import { getRestaurantCover, useFallbackImage } from "@/lib/restaurantImages";
 import { getRoomHref } from "@/lib/roomUrl";
-import { getDemoRestaurants } from "@/lib/restaurantSource";
 import { getReadableSupabaseError } from "@/lib/supabaseErrors";
 import {
   getCurrentUser,
@@ -17,21 +15,19 @@ import {
 } from "@/lib/storage";
 import { InvalidRoomTokenError, joinSupabaseRoom } from "@/lib/supabaseRooms";
 import { motion } from "framer-motion";
-import { ChevronRight, Heart, LogIn, MapPin, Play, Plus, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { ArrowUpRight, Heart, LogIn, MapPin, Play, Plus, ShieldCheck, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
 const steps = [
-  { title: "创建饭局", detail: "选地点和预算", icon: MapPin },
-  { title: "发给朋友", detail: "一起滑同一批", icon: Users },
-  { title: "自动 Match", detail: "最后一起决定", icon: Heart }
+  { title: "选地点", icon: MapPin },
+  { title: "发链接", icon: Users },
+  { title: "一起 Match", icon: Heart }
 ];
 
 export default function HomePage() {
   const router = useRouter();
-  const homeRestaurants = getDemoRestaurants();
-  const heroRestaurant = homeRestaurants[9] ?? homeRestaurants[0];
   const [joinOpen, setJoinOpen] = useState(false);
   const [nickname, setNickname] = useState("");
   const [code, setCode] = useState("");
@@ -106,94 +102,86 @@ export default function HomePage() {
   return (
     <AppChrome
       rightSlot={
-        <div className="rounded-full bg-teal-50 px-3 py-2 text-xs font-black text-teal-800 ring-1 ring-teal-200">
-          V4.2 Beta
+        <div className="rounded-full border border-teal-200 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800">
+          V4.2 · BETA
         </div>
       }
     >
-      <section className="flex flex-1 flex-col px-5 pb-7 pt-4">
+      <section className="flex flex-1 flex-col pb-7">
         <motion.div
-          initial={{ opacity: 0, y: 18 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.42 }}
+          transition={{ duration: 0.35 }}
           className="flex flex-1 flex-col"
         >
-          <div className="relative min-h-[390px] overflow-hidden rounded-lg bg-slate-950 text-white shadow-[0_24px_70px_rgba(15,118,110,0.22)]">
-            {heroRestaurant ? (
-              <img
-                src={getRestaurantCover(heroRestaurant)}
-                alt="朋友一起选择餐厅"
-                className="absolute inset-0 h-full w-full object-cover"
-                width={720}
-                height={960}
-                loading="eager"
-                fetchPriority="high"
-                decoding="async"
-                onError={(event) => useFallbackImage(event.currentTarget, heroRestaurant)}
-              />
-            ) : null}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-950/18" />
-            <div className="absolute right-5 top-5 flex rotate-[-5deg] items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-black text-teal-600 shadow-lg">
-              <Sparkles size={16} />
-              Match!
-            </div>
-            <div className="absolute inset-x-0 bottom-0 p-6">
-              <p className="text-xs font-black tracking-[0.12em] text-teal-50">吃啥 Match · V4.2 Beta</p>
-              <h1 className="mt-3 text-4xl font-black leading-[1.06] text-white">
-                像交友软件一样，
-                <span className="block">和朋友一起滑餐厅</span>
-              </h1>
-              <p className="mt-4 max-w-[19rem] text-sm font-bold leading-6 text-white/95">
-                左滑不想吃，右滑想吃。你和朋友都喜欢的餐厅会自动 Match。
-              </p>
-              <p className="mt-2 text-xs font-black text-teal-50">适合朋友聚餐、约饭前快速达成共识。</p>
+          <div className="home-cover relative h-[min(54dvh,460px)] min-h-[370px] overflow-hidden bg-slate-900 text-white">
+            <img
+              src="/restaurants/home-cover-v2.jpg"
+              alt="朋友围坐分享晚餐"
+              className="absolute inset-0 h-full w-full object-cover object-[center_42%]"
+              width={1122}
+              height={1402}
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/45 to-slate-950/5" />
+            <div className="relative flex h-full flex-col justify-between px-6 pb-7 pt-5">
+              <span className="w-fit rounded-full border border-white/40 bg-slate-950/25 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-sm">
+                朋友一起选，更容易吃到想吃的
+              </span>
+              <div>
+                <p className="text-xs font-semibold text-teal-100">吃啥 Match · V4.2</p>
+                <h1 className="mt-2 text-[34px] font-extrabold leading-[1.13] text-white">
+                  今天吃什么，<br />不用再吵了。
+                </h1>
+                <p className="mt-3 max-w-[18rem] text-sm font-medium leading-6 text-white/95">
+                  和朋友一起滑餐厅，喜欢同一家，就 Match。
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            {steps.map((step, index) => {
-              const Icon = step.icon;
-              return (
-                <div key={step.title} className="min-w-0 rounded-lg border border-teal-200/80 bg-teal-50 px-3 py-3 shadow-sm">
-                  <div className="flex items-center gap-1.5">
-                    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-teal-700 text-[10px] font-black text-white shadow-sm">{index + 1}</span>
-                    <span className="text-[10px] font-black text-teal-950">第 {index + 1} 步</span>
-                    <Icon size={13} className="ml-auto shrink-0 text-teal-700" />
-                  </div>
-                  <p className="mt-2 truncate text-xs font-black text-teal-950">{step.title}</p>
-                  <p className="mt-1 text-[11px] font-bold leading-4 text-teal-800">{step.detail}</p>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="safe-bottom mt-6 space-y-3">
+          <div className="safe-bottom px-5 pt-5">
             <button
               type="button"
               onClick={startCreateRoom}
-              className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-teal-500 text-base font-black text-white shadow-lg shadow-teal-500/25 transition active:scale-[0.98]"
+              className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-teal-700 px-4 text-base font-bold text-white transition active:scale-[0.98]"
             >
-              <Plus size={21} />
+              <Plus size={20} />
               创建饭局
-              <ChevronRight size={20} />
+              <ArrowUpRight size={18} />
             </button>
             <button
               type="button"
               onClick={startDemo}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white text-base font-black text-teal-700 shadow-sm ring-1 ring-teal-200 transition active:scale-[0.98]"
+              className="mt-2.5 flex h-12 w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white text-sm font-semibold text-slate-800 transition active:scale-[0.98]"
             >
-              <Play size={19} className="fill-teal-500 text-teal-500" />
+              <Play size={17} className="text-teal-700" />
               快速体验
             </button>
+            <p className="mt-2 text-center text-xs text-slate-600">左滑跳过 · 右滑想吃 · 共同喜欢自动入榜</p>
+
+            <div className="mt-6 grid grid-cols-3 border-y border-slate-200 py-4">
+              {steps.map((step, index) => {
+                const Icon = step.icon;
+                return (
+                  <div key={step.title} className="flex min-w-0 flex-col items-center gap-1.5 text-center">
+                    <Icon size={18} className="text-teal-700" />
+                    <span className="text-xs font-semibold text-slate-700">{index + 1}. {step.title}</span>
+                  </div>
+                );
+              })}
+            </div>
             <button
               type="button"
               onClick={() => setJoinOpen((value) => !value)}
-              className="flex h-10 w-full items-center justify-center gap-2 text-sm font-black text-slate-700"
+              className="mt-2 flex h-10 w-full items-center justify-center gap-2 text-sm font-semibold text-slate-700"
             >
               <LogIn size={16} />
-              已有旧饭局？加入饭局
+              已有邀请？加入饭局
             </button>
-            <div className="flex items-center justify-center gap-4 pt-1 text-xs font-black text-slate-600">
+            <div className="flex items-center justify-center gap-5 pt-2 text-xs font-medium text-slate-600">
               <Link href="/about">关于项目</Link>
               <Link href="/privacy" className="inline-flex items-center gap-1"><ShieldCheck size={13} />隐私说明</Link>
             </div>

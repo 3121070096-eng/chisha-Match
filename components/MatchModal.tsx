@@ -52,7 +52,7 @@ export function MatchModal({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.86, opacity: 0, y: 28 }}
             transition={{ type: "spring", stiffness: 260, damping: 20 }}
-            className="relative w-full max-w-[360px] overflow-hidden rounded-lg bg-white shadow-[0_30px_90px_rgba(0,0,0,0.28)]"
+            className="relative w-full max-w-[360px] overflow-hidden rounded-lg bg-white shadow-[0_24px_70px_rgba(0,0,0,0.2)]"
           >
             <button
               type="button"
@@ -92,18 +92,18 @@ export function MatchModal({
                   <Sparkles size={15} />
                   Match
                 </div>
-                <h2 className="mt-3 text-3xl font-black">{restaurant.name}</h2>
+                <h2 className="mt-3 line-clamp-2 break-words text-2xl font-bold leading-tight">{restaurant.name}</h2>
               </div>
             </div>
 
             <div className="p-5 text-center">
-              <h3 className="text-2xl font-black text-slate-950">
+              <h3 className="text-2xl font-bold text-slate-950">
                 你们 Match 了！
               </h3>
               <p className="mt-2 text-sm font-bold leading-relaxed text-slate-600">
                 你和朋友都想吃这家，可以先加入共同心动榜。
               </p>
-              <p className="mt-1 text-xs font-black text-teal-600">
+              <p className="mt-1 break-words text-xs font-semibold text-teal-800">
                 {likedBy.join("、")} 已经点头 · {count} 人共同心动
               </p>
               <button

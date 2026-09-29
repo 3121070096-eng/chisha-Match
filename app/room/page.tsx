@@ -370,37 +370,29 @@ export default function RoomPage() {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-5"
         >
-          <div className="overflow-hidden rounded-lg bg-teal-500 p-5 text-white shadow-[0_22px_60px_rgba(20,184,166,0.26)]">
+          <div className="border-b border-slate-200 pb-5 pt-2">
             <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-black text-teal-100">#{room.id}</p>
-                <h1 className="mt-2 text-3xl font-black leading-tight">{room.name}</h1>
-                <p className="mt-2 inline-flex rounded-full bg-white/14 px-2.5 py-1 text-xs font-black text-teal-50">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-teal-800">饭局 #{room.id}</p>
+                <h1 className="mt-2 break-words text-2xl font-bold leading-tight text-slate-950">{room.name}</h1>
+                <p className="mt-2 inline-flex rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">
                   {getDiningScenarioOption(room.diningScenario).label}
                 </p>
               </div>
-              <div className="grid size-12 place-items-center rounded-full bg-white/18">
-                <Sparkles size={23} />
-              </div>
             </div>
-            <div className="mt-5 grid grid-cols-3 gap-2 text-sm font-black">
-              <div className="rounded-lg bg-white/14 p-3">
-                <MapPin size={17} />
-                <p className="mt-2 text-xs text-teal-100">饭局地点</p>
-                <p className="mt-1 line-clamp-2">{room.location}</p>
-              </div>
-              <div className="rounded-lg bg-white/14 p-3">
-                <Wallet size={17} />
-                <p className="mt-2">¥{room.budget}/人</p>
-              </div>
-              <div className="rounded-lg bg-white/14 p-3">
-                <Users size={17} />
-                <p className="mt-2">{members.length} 人</p>
+            <div className="mt-4 space-y-2 text-sm text-slate-700">
+              <p className="flex min-w-0 items-start gap-2">
+                <MapPin size={16} className="mt-0.5 shrink-0 text-teal-700" />
+                <span className="min-w-0 break-words">{room.location}</span>
+              </p>
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
+                <span className="inline-flex items-center gap-2"><Wallet size={16} className="text-teal-700" />¥{room.budget}/人</span>
+                <span className="inline-flex items-center gap-2"><Users size={16} className="text-teal-700" />已加入 {members.length} 人</span>
               </div>
             </div>
             <FlowProgress
               stage={room.status === "decided" ? "decided" : "room"}
-              className="mt-4"
+              className="mt-3"
             />
           </div>
 
@@ -448,11 +440,9 @@ export default function RoomPage() {
               </button>
             </form>
           ) : (
-            <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
-              <p className="text-sm font-black text-slate-500">当前身份</p>
-              <p className="mt-1 text-xl font-black text-slate-950">
-                {currentMember.nickname}
-              </p>
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 py-3 text-sm">
+              <p className="shrink-0 text-slate-600">当前身份</p>
+              <p className="min-w-0 break-words text-right font-semibold text-slate-900">{currentMember.nickname}</p>
             </div>
           )}
 
@@ -475,21 +465,16 @@ export default function RoomPage() {
             />
           ) : null}
 
-          <div className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2 text-sm font-black text-slate-700">
-                <LinkIcon size={17} className="text-teal-500" />
-                邀请链接
-              </div>
-              <span className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-black text-teal-700">
-                发给朋友
-              </span>
+          <div className="rounded-lg bg-[#104f49] p-5 text-white">
+            <div className="mb-2 flex items-center gap-2 text-base font-bold">
+              <LinkIcon size={18} className="text-teal-100" />
+              把朋友叫来一起选
             </div>
-            <p className="mb-3 text-sm font-bold leading-6 text-slate-500">
-              下一步：把链接发给朋友，大家一起滑同一批餐厅。
+            <p className="mb-3 text-sm leading-6 text-white/85">
+              发链接给朋友，大家滑同一批餐厅。
             </p>
-            <div className="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200/70">
-              <p className="break-all text-sm font-bold leading-6 text-slate-600">
+            <div className="rounded-md border border-white/20 bg-white/10 px-3 py-2.5">
+              <p className="break-all text-xs leading-5 text-white/90">
                 {inviteLink}
               </p>
             </div>
@@ -497,25 +482,25 @@ export default function RoomPage() {
               <button
                 type="button"
                 onClick={handleCopy}
-                className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-slate-950 text-sm font-black text-white shadow-sm transition active:scale-[0.98]"
+                className="flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 text-sm font-semibold text-teal-900 transition active:scale-[0.98]"
                 aria-label="复制邀请链接"
               >
-                <Copy size={17} />
+                <Copy size={17} className="shrink-0" />
                 复制饭局链接
               </button>
             </div>
             {copied ? (
-              <p className="mt-2 text-sm font-black text-teal-600">
+              <p className="mt-2 text-sm font-semibold text-teal-50">
                 链接已复制，发到群里就可以一起选啦。
               </p>
             ) : null}
           </div>
 
           <div>
-            <p className="mb-3 text-sm font-black text-slate-700">
+            <p className="mb-2 text-sm font-semibold text-slate-800">
               实时成员 · 已加入 {members.length} 人
             </p>
-            <p className="mb-3 text-sm font-bold leading-6 text-slate-500">
+            <p className="mb-3 text-sm leading-6 text-slate-600">
               {members.length <= 1
                 ? "你可以先自己滑，也可以邀请朋友一起 Match。"
                 : "朋友已加入，可以开始一起滑啦。"}
@@ -550,7 +535,7 @@ export default function RoomPage() {
             type="button"
             disabled={!currentMember || (room.status !== "decided" && !room.restaurantPoolConfirmedAt)}
             onClick={handleStartSwiping}
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-teal-500 text-base font-black text-white shadow-lg shadow-teal-500/25 transition enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+            className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-teal-700 text-base font-semibold text-white transition enabled:active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             <Play size={21} className="fill-white" />
             {room.status === "decided" ? "查看最终结果" : room.restaurantPoolConfirmedAt ? "开始选择" : "等待确认餐厅"}

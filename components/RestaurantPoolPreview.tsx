@@ -181,8 +181,8 @@ export function RestaurantPoolPreview({
                 onError={(event) => useFallbackImage(event.currentTarget, restaurant)}
               />
               <div className="p-2.5">
-                <p className="truncate text-xs font-black text-slate-900">{restaurant.name}</p>
-                <p className="mt-1 truncate text-[11px] font-bold text-slate-500">{restaurant.cuisine} · {restaurant.distance}</p>
+                <p className="line-clamp-2 min-h-8 break-words text-xs font-semibold leading-4 text-slate-900">{restaurant.name}</p>
+                <p className="mt-1 line-clamp-2 break-words text-[11px] leading-4 text-slate-600">{restaurant.cuisine} · {restaurant.distance}</p>
                 {isOwner && !confirmed ? (
                   <button
                     type="button"
@@ -208,17 +208,17 @@ export function RestaurantPoolPreview({
             type="button"
             disabled={pending !== null || refreshCount >= 2}
             onClick={() => void refreshPool()}
-            className="flex h-11 w-full items-center justify-center gap-1.5 rounded-full bg-slate-100 text-xs font-black text-slate-700 disabled:text-slate-300"
+            className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-full bg-slate-100 px-2 text-xs font-semibold text-slate-700 disabled:text-slate-400"
           >
             <RefreshCw size={15} className={pending === "refresh" ? "animate-spin" : ""} />
-            {refreshCount >= 2 ? "已到换批上限" : "这批不太合适，换一批"}
+            {refreshCount >= 2 ? "已到换批上限" : "换一批"}
           </button>
           {!confirmed ? (
             <button
               type="button"
               disabled={pending !== null || !canConfirm}
               onClick={() => void confirmPool()}
-              className="flex h-11 w-full items-center justify-center gap-1.5 rounded-full bg-teal-500 text-xs font-black text-white shadow-md shadow-teal-500/20 disabled:bg-slate-300"
+              className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-full bg-teal-700 px-2 text-xs font-semibold text-white disabled:bg-slate-300"
             >
               <Check size={15} /> 确认这批餐厅
             </button>

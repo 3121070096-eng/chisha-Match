@@ -88,25 +88,24 @@ export function SwipeDeck({
   return (
     <section className="flex min-h-0 flex-1 flex-col px-4 pb-2 pt-0">
       <div className="mb-2 flex items-center justify-between gap-2 px-1">
-        <p className="min-w-0 truncate text-xs font-black text-slate-500">
-          <span className="mr-1 text-teal-600">第 2 步 / 3 步</span>
+        <p className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700" title={`${room.location} · ${room.name}`}>
           {room.location} · {room.name}
         </p>
-        <div className="flex shrink-0 items-center gap-1.5 text-[11px] font-black">
-          <span className="rounded-full bg-white px-2.5 py-1.5 text-slate-600 ring-1 ring-teal-900/5">
+        <div className="flex shrink-0 items-center gap-1.5 text-[11px] font-semibold">
+          <span className="rounded-full bg-white px-2.5 py-1.5 text-slate-700 ring-1 ring-slate-200">
             {selectedCount}/{totalRestaurants}
           </span>
           <button
             type="button"
             onClick={onViewMatches}
-            className="rounded-full bg-teal-50 px-2.5 py-1.5 text-teal-700 ring-1 ring-teal-100"
+            className="rounded-full bg-teal-50 px-2.5 py-1.5 text-teal-800"
           >
             {state.matches.length} 心动
           </button>
           <button
             type="button"
             onClick={() => setShowHelp((value) => !value)}
-            className="grid size-7 place-items-center rounded-full bg-white text-slate-500 ring-1 ring-teal-900/5"
+            className="grid size-7 place-items-center rounded-full bg-white text-slate-700 ring-1 ring-slate-200"
             aria-label="查看滑卡玩法"
           >
             <CircleHelp size={13} />
@@ -253,9 +252,9 @@ function RestaurantStackPreview({
   depth: number;
 }) {
   return (
-    <div className="relative h-full min-h-[520px]">
-      <article className="absolute inset-0 overflow-hidden rounded-lg bg-white shadow-[0_18px_50px_rgba(15,118,110,0.14)] ring-1 ring-teal-900/8">
-        <div className="relative h-[78%] overflow-hidden bg-teal-50">
+    <div className="relative h-full min-h-0">
+      <article className="absolute inset-0 overflow-hidden rounded-lg bg-white shadow-[0_12px_36px_rgba(14,57,52,0.12)] ring-1 ring-teal-900/8">
+        <div className="relative h-[calc(100%-104px)] overflow-hidden bg-teal-50">
           <img
             src={getRestaurantCover(restaurant)}
             alt={restaurant.name}
@@ -270,20 +269,20 @@ function RestaurantStackPreview({
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/65 via-slate-950/8 to-transparent" />
-          <div className="absolute bottom-4 left-5 right-5 text-white">
-            <h2 className="truncate text-2xl font-black">{restaurant.name}</h2>
-            <p className="mt-2 text-sm font-black text-teal-100">
+          <div className="absolute bottom-4 left-4 right-4 text-white">
+            <h2 className="line-clamp-2 break-words text-[27px] font-bold leading-tight">{restaurant.name}</h2>
+            <p className="mt-2 text-xs font-medium text-teal-100">
               {restaurant.cuisine} · {formatRestaurantPrice(restaurant)}
             </p>
           </div>
         </div>
-        <div className="h-[22%] p-4">
+        <div className="h-[104px] px-3 py-2.5">
           <div className="h-4 w-24 rounded-full bg-slate-100" />
-          <div className="mt-4 flex gap-2">
-            {restaurant.tags.slice(0, 3).map((tag) => (
+          <div className="mt-4 flex gap-1.5 overflow-hidden">
+            {restaurant.tags.slice(0, 2).map((tag) => (
               <span
                 key={tag}
-                className="rounded-full bg-teal-50 px-3 py-2 text-xs font-black text-teal-700"
+                className="max-w-[48%] truncate rounded-full bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-800"
               >
                 {tag}
               </span>

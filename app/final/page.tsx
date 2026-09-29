@@ -475,8 +475,8 @@ export default function FinalPage() {
         </div>
       ) : null}
       <section className="flex flex-1 flex-col px-5 pb-3 pt-1">
-        <p className="mb-2 rounded-full bg-white/82 px-3 py-2 text-xs font-black text-slate-500 shadow-sm ring-1 ring-teal-900/5">
-          饭局地点：{room.location}
+        <p className="mb-3 break-words text-xs font-medium leading-5 text-slate-600">
+          {room.location} · 共同决定
         </p>
         {finalItem ? (
           <>
@@ -486,12 +486,11 @@ export default function FinalPage() {
               decisionVoteCount={decisionVoteCounts[finalItem.restaurant.id] ?? 0}
             />
             <div className="safe-bottom mt-4 space-y-3">
-              <FeedbackPanel roomId={room.id} />
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => void copyGroupMessage()}
-                  className="flex h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-3 text-sm font-black text-white shadow-sm"
+                  className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-full bg-slate-900 px-2 text-center text-xs font-semibold leading-5 text-white"
                 >
                   <Copy size={17} />
                   {shareCopied ? "已复制，出发！" : "复制群聊文案"}
@@ -499,7 +498,7 @@ export default function FinalPage() {
                 <button
                   type="button"
                   onClick={() => void copyInviteLink()}
-                  className="flex h-12 items-center justify-center gap-2 rounded-full bg-white px-3 text-sm font-black text-slate-700 shadow-sm ring-1 ring-teal-900/10"
+                  className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-2 text-center text-xs font-semibold leading-5 text-slate-800"
                 >
                   <LinkIcon size={17} className="text-teal-600" />
                   {inviteCopied ? "链接已复制" : "复制饭局链接"}
@@ -515,7 +514,7 @@ export default function FinalPage() {
                 <button
                   type="button"
                   onClick={openAmap}
-                  className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-teal-50 text-sm font-black text-teal-700 ring-1 ring-teal-100"
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-teal-50 text-sm font-semibold text-teal-800"
                 >
                   <MapPinned size={18} />
                   打开高德地图
@@ -525,7 +524,7 @@ export default function FinalPage() {
                 type="button"
                 onClick={() => void recreateRoom()}
                 disabled={recreating}
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-teal-500 text-base font-black text-white shadow-lg shadow-teal-500/25 disabled:bg-slate-300 disabled:shadow-none"
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-teal-700 px-3 text-sm font-semibold text-white disabled:bg-slate-300"
               >
                 <Plus size={18} />
                 {recreating ? "正在准备新一局" : "按这次设置再开一局"}
@@ -533,11 +532,12 @@ export default function FinalPage() {
               <button
                 type="button"
                 onClick={restartWithNewLocation}
-                className="flex h-11 w-full items-center justify-center text-sm font-black text-slate-500"
+                className="flex h-11 w-full items-center justify-center text-sm font-semibold text-slate-700"
               >
                 换个地点再开一局
               </button>
-              <Link href="/privacy" className="block text-center text-xs font-black text-slate-400">
+              <FeedbackPanel roomId={room.id} />
+              <Link href="/privacy" className="block text-center text-xs font-medium text-slate-600">
                 隐私与数据说明
               </Link>
             </div>

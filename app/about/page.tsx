@@ -37,53 +37,53 @@ export default function AboutPage() {
 
   return (
     <AppChrome showBack title="关于吃啥 Match">
-      <section className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 pb-7 pt-2 no-scrollbar">
-        <div className="rounded-lg bg-teal-500 p-5 text-white shadow-[0_20px_56px_rgba(13,148,136,0.24)]">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/16 px-3 py-2 text-xs font-black text-teal-50">
+      <section className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-5 pb-7 pt-2 no-scrollbar">
+        <div className="border-b border-slate-200 pb-5 pt-3">
+          <div className="inline-flex items-center gap-2 text-xs font-semibold text-teal-800">
             <Sparkles size={15} />
             吃啥 Match · Public Beta
           </div>
-          <h1 className="mt-4 text-3xl font-black leading-tight">像交友软件一样，和朋友一起滑餐厅</h1>
-          <p className="mt-3 text-sm font-semibold leading-6 text-teal-50">
+          <h1 className="mt-3 text-2xl font-bold leading-tight text-slate-950">像交友软件一样，<br />和朋友一起滑餐厅</h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
             吃啥 Match 是一个让朋友快速达成聚餐共识的决策工具。
           </p>
         </div>
 
-        <section className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
-          <h2 className="text-lg font-black text-slate-950">为什么做它</h2>
-          <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+        <section className="border-b border-slate-200 pb-5">
+          <h2 className="text-base font-bold text-slate-950">为什么做它</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
             朋友聚餐时，大家常常在群里反复问“吃什么”。吃啥 Match 用左右滑和共同 Match 的方式，把模糊偏好变成共同选择。
           </p>
         </section>
 
-        <section className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
-          <h2 className="text-lg font-black text-slate-950">核心功能</h2>
+        <section className="border-b border-slate-200 pb-5">
+          <h2 className="text-base font-bold text-slate-950">核心功能</h2>
           <div className="mt-3 flex flex-wrap gap-2">
             {features.map((feature) => (
-              <span key={feature} className="rounded-full bg-teal-50 px-3 py-2 text-xs font-black text-teal-700">
+              <span key={feature} className="rounded-full bg-teal-50 px-3 py-1.5 text-xs font-medium text-teal-800">
                 {feature}
               </span>
             ))}
           </div>
         </section>
 
-        <section className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
-          <h2 className="text-lg font-black text-slate-950">技术栈</h2>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-sm font-black text-slate-600">
-            <span className="rounded-lg bg-slate-50 p-3">Next.js · TypeScript</span>
-            <span className="rounded-lg bg-slate-50 p-3">Tailwind · Framer Motion</span>
-            <span className="rounded-lg bg-slate-50 p-3">Supabase · Vercel</span>
-            <span className="rounded-lg bg-slate-50 p-3">高德地点数据</span>
+        <section className="border-b border-slate-200 pb-5">
+          <h2 className="text-base font-bold text-slate-950">技术栈</h2>
+          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs font-medium text-slate-600">
+            <span>Next.js · TypeScript</span>
+            <span>Tailwind · Framer Motion</span>
+            <span>Supabase · Vercel</span>
+            <span>高德地点数据</span>
           </div>
         </section>
 
-        <section className="rounded-lg bg-white p-4 shadow-sm ring-1 ring-teal-900/5">
-          <h2 className="text-lg font-black text-slate-950">版本路线</h2>
-          <div className="mt-3 space-y-2">
+        <section className="border-b border-slate-200 pb-5">
+          <h2 className="text-base font-bold text-slate-950">版本路线</h2>
+          <div className="mt-3 space-y-3">
             {roadmap.map(([version, detail]) => (
-              <div key={version} className="flex items-center gap-3 rounded-lg bg-slate-50 p-3">
-                <span className="grid size-9 place-items-center rounded-full bg-slate-950 text-xs font-black text-white">{version}</span>
-                <p className="text-sm font-black text-slate-700">{detail}</p>
+              <div key={version} className="flex items-start gap-3 text-sm">
+                <span className="shrink-0 font-bold text-teal-800">{version}</span>
+                <p className="min-w-0 text-slate-700">{detail}</p>
               </div>
             ))}
           </div>
@@ -91,23 +91,23 @@ export default function AboutPage() {
 
         <Link
           href="/test-guide"
-          className="flex items-center gap-3 rounded-lg bg-teal-50 p-4 text-teal-950 ring-1 ring-teal-100 transition active:scale-[0.99]"
+          className="flex items-center gap-3 rounded-lg border border-teal-100 bg-teal-50 p-4 text-teal-950 transition active:scale-[0.99]"
         >
           <span className="grid size-10 shrink-0 place-items-center rounded-full bg-white text-teal-700 shadow-sm">
             <ClipboardCheck size={19} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-black">正在做真实用户测试？</span>
-            <span className="mt-1 block text-xs font-bold text-teal-800">查看测试任务、观察重点和记录模板</span>
+            <span className="block text-sm font-semibold">正在做真实用户测试？</span>
+            <span className="mt-1 block text-xs text-teal-800">查看测试任务、观察重点和记录模板</span>
           </span>
           <ChevronRight size={18} className="shrink-0 text-teal-700" />
         </Link>
 
         <div className="safe-bottom grid grid-cols-2 gap-3 pt-2">
-          <button type="button" onClick={createRoom} className="flex h-12 items-center justify-center gap-2 rounded-full bg-teal-500 text-sm font-black text-white shadow-lg shadow-teal-500/25">
+          <button type="button" onClick={createRoom} className="flex h-12 items-center justify-center gap-2 rounded-full bg-teal-700 text-sm font-semibold text-white">
             <Plus size={17} /> 创建饭局
           </button>
-          <button type="button" onClick={startDemo} className="flex h-12 items-center justify-center gap-2 rounded-full bg-white text-sm font-black text-teal-700 ring-1 ring-teal-200">
+          <button type="button" onClick={startDemo} className="flex h-12 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white text-sm font-semibold text-teal-800">
             <Play size={17} className="fill-teal-500" /> 快速体验
           </button>
         </div>
